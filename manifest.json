@@ -1,0 +1,24 @@
+{
+  "name": "TokenLens - AI 费率计算器",
+  "short_name": "TokenLens",
+  "description": "AI 模型 Token 成本计算器，支持阶梯定价、多币种、多模型横向对比",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0c0c10",
+  "theme_color": "#8b5cf6",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}
