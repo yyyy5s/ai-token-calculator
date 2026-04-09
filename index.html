@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="TokenLens — AI 模型 Token 成本计算器，支持多币种、阶梯定价、模型横向对比" />
+  <meta name="theme-color" content="#8b5cf6" />
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+
+  <title>TokenLens — AI 费率计算器</title>
+
+  <link rel="stylesheet" href="./src/styles.css" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+
+<body>
+  <!-- ══════ TOP BAR ══════ -->
+  <header class="topbar" id="topbar">
+    <div class="topbar__brand">
+      <div class="topbar__logo">
+        <i data-lucide="coins"></i>
+      </div>
+      <span class="topbar__name">TokenLens</span>
+      <span class="topbar__tagline">AI 费率计算器</span>
+    </div>
+
+    <div class="topbar__actions">
+      <div class="exchange-badge" id="exchangeBadge">
+        <i data-lucide="globe"></i>
+        <span id="exchangeRateDisplay">汇率加载中...</span>
+      </div>
+
+      <button class="btn btn--ghost btn--sm" id="manageCurrencyBtn" title="币种管理">
+        <i data-lucide="circle-dollar-sign"></i>
+      </button>
+
+      <button class="btn btn--ghost btn--sm" id="installPwaBtn" style="display:none;">
+        <i data-lucide="download"></i>
+        <span class="pwa-text">安装</span>
+      </button>
+
+      <button class="icon-btn icon-btn--theme" id="themeToggleBtn" title="切换主题">
+        <i data-lucide="sun" class="theme-icon--light"></i>
+        <i data-lucide="moon" class="theme-icon--dark"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════ LAYOUT ══════ -->
+  <div class="layout" id="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__header">
+        <h2 class="sidebar__title">
+          <i data-lucide="layers"></i>
+          模型库
+        </h2>
+        <button class="btn btn--primary btn--sm" id="addModelBtn">
+          <i data-lucide="plus"></i>
+          添加
+        </button>
+      </div>
+
+      <div class="sidebar__search">
+        <i data-lucide="search"></i>
+        <input type="text" id="modelSearchInput" placeholder="搜索模型..." autocomplete="off" />
+      </div>
+
+      <div class="sidebar__list" id="modelList"></div>
+
+      <div class="sidebar__footer">
+        <button class="btn btn--ghost btn--sm btn--full" id="manageModelsBtn">
+          <i data-lucide="settings"></i>
+          管理自定义模型
+        </button>
+      </div>
+    </aside>
+
+    <!-- Mobile sidebar backdrop -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Main content -->
+    <main class="main" id="main">
+
+      <!-- Model Banner -->
+      <div class="model-banner" id="modelBanner">
+        <div class="model-banner__info">
+          <span class="model-banner__provider" id="bannerProvider">请从左侧选择模型</span>
+          <span class="model-banner__name" id="bannerName">—</span>
+          <span class="model-banner__badge" id="bannerCurrency"></span>
+          <span class="model-banner__badge model-banner__badge--tier" id="bannerTierBadge" style="display:none;">
+            <i data-lucide="layers"></i> 阶梯定价
+          </span>
+        </div>
+        <div class="model-banner__actions">
+          <button class="btn btn--ghost btn--sm" id="bannerCompareBtn" title="加入对比" style="display:none;">
+            <i data-lucide="git-compare"></i> 加入对比
+          </button>
+        </div>
+      </div>
+
+      <!-- Tier Card -->
+      <div class="tier-card" id="tierCard" style="display:none;">
+        <div class="tier-card__header">
+          <i data-lucide="layers"></i>
+          <span>阶梯定价规则</span>
+        </div>
+        <div class="tier-card__rows" id="tierCardRows"></div>
+      </div>
+
+      <!-- Params -->
+      <section class="card params-card" id="paramsCard">
+        <h3 class="card__title">
+          <i data-lucide="sliders-horizontal"></i>
+          输入参数
+        </h3>
+        <div class="params-grid">
+          <div class="param-item">
+            <label class="param-label" for="inputTokens">
+              单次输入 Token
+              <span class="param-hint">含上下文</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="inputTokens" class="param-input" value="30000" min="0" step="100" />
+              <span class="param-unit">tokens</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="outputTokens">
+              单次输出 Token
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="outputTokens" class="param-input" value="1200" min="0" step="100" />
+              <span class="param-unit">tokens</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="cacheHitRate">
+              缓存命中率
+              <span class="param-hint">0% = 不使用缓存</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="cacheHitRate" class="param-input" value="20" min="0" max="100" step="5" />
+              <span class="param-unit">%</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="dailyCalls">
+              每日调用次数
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="dailyCalls" class="param-input" value="100" min="0" step="10" />
+              <span class="param-unit">次/天</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="usdToCny">
+              汇率 (1 USD = ? CNY)
+              <span class="param-hint" id="rateSourceHint">自动获取</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="usdToCny" class="param-input" value="7.25" min="0.01" step="0.01" />
+              <span class="param-unit">CNY</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="card results-card" id="resultsCard">
+        <h3 class="card__title">
+          <i data-lucide="bar-chart-2"></i>
+          计算结果
+        </h3>
+        <div class="results-table-wrap">
+          <table class="results-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>💲 美元 (USD)</th>
+                <th>¥ 人民币 (CNY)</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+              <tr class="results-empty">
+                <td colspan="3">← 请先从左侧选择一个模型</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="results-breakdown" id="resultsBreakdown" style="display:none;">
+          <div class="breakdown-chart-wrap">
+            <canvas id="breakdownChart" width="140" height="140"></canvas>
+          </div>
+          <div class="breakdown-labels" id="breakdownLabels"></div>
+        </div>
+      </section>
+
+      <!-- Compare -->
+      <section class="card compare-card" id="compareCard">
+        <div class="card__title card__title--collapsible" id="compareToggle">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i data-lucide="git-compare"></i>
+            模型横向对比
+          </div>
+          <button class="icon-btn" id="compareCollapseBtn">
+            <i data-lucide="chevron-down"></i>
+          </button>
+        </div>
+        <div class="compare-content" id="compareContent">
+          <div class="compare-toolbar">
+            <span class="compare-hint">同等参数下各模型成本对比（最多 5 个）</span>
+            <button class="btn btn--ghost btn--sm" id="addCompareBtn">
+              <i data-lucide="plus"></i>
+              添加对比
+            </button>
+          </div>
+          <div class="compare-table-wrap" id="compareTableWrap">
+            <div class="compare-empty">
+              <i data-lucide="git-compare"></i>
+              <span>右键模型 → "加入对比"，或点击上方按钮</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Mobile sidebar toggle -->
+  <button class="sidebar-toggle" id="sidebarToggle">
+    <i data-lucide="layers"></i>
+  </button>
+
+  <!-- ══════ MODAL: Add/Edit Model ══════ -->
+  <div class="modal-overlay" id="modelModalOverlay" style="display:none;">
+    <div class="modal" id="modelModal">
+      <div class="modal__header">
+        <h3 class="modal__title" id="modalTitle">添加自定义模型</h3>
+        <button class="icon-btn" id="modalCloseBtn"><i data-lucide="x"></i></button>
+      </div>
+      <form class="modal__form" id="modelForm" novalidate>
+        <div class="form-row">
+          <div class="form-item">
+            <label for="fm-name">模型名称 *</label>
+            <input type="text" id="fm-name" placeholder="如：My-GPT-4" required />
+          </div>
+          <div class="form-item">
+            <label for="fm-provider">提供商 *</label>
+            <input type="text" id="fm-provider" placeholder="如：OpenAI" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-item">
+            <label for="fm-currency">计费货币 *</label>
+            <select id="fm-currency"></select>
+          </div>
+          <div class="form-item">
+            <label for="fm-type">定价类型 *</label>
+            <select id="fm-type">
+              <option value="standard">标准定价（固定单价）</option>
+              <option value="tiered_output">阶梯定价（按输出量）</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Standard pricing -->
+        <div class="form-section" id="fm-standard-section">
+          <h4 class="form-section__title">价格配置（/ 百万 tokens）</h4>
+          <div class="form-row form-row--3">
+            <div class="form-item">
+              <label for="fm-input">输入成本</label>
+              <input type="number" id="fm-input" placeholder="0.00" min="0" step="0.001" />
+            </div>
+            <div class="form-item">
+              <label for="fm-cacheHit">缓存命中</label>
+              <input type="number" id="fm-cacheHit" placeholder="0.00" min="0" step="0.001" />
+            </div>
+            <div class="form-item">
+              <label for="fm-output">输出成本</label>
+              <input type="number" id="fm-output" placeholder="0.00" min="0" step="0.001" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Tiered pricing -->
+        <div class="form-section" id="fm-tier-section" style="display:none;">
+          <h4 class="form-section__title">阶梯价格规则（/ 百万 tokens）</h4>
+          <div class="form-row">
+            <div class="form-item">
+              <label for="fm-tier-input">输入成本</label>
+              <input type="number" id="fm-tier-input" placeholder="0.00" min="0" step="0.001" />
+            </div>
+            <div class="form-item">
+              <label for="fm-tier-cacheHit">缓存命中成本</label>
+              <input type="number" id="fm-tier-cacheHit" placeholder="0.00" min="0" step="0.001" />
+            </div>
+          </div>
+          <div id="fm-tier-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm" id="addTierRowBtn" style="margin-top:8px;">
+            <i data-lucide="plus"></i>
+            添加档位
+          </button>
+        </div>
+
+        <div class="modal__footer">
+          <button type="button" class="btn btn--ghost" id="cancelModalBtn">取消</button>
+          <button type="submit" class="btn btn--primary" id="saveModelBtn">
+            <i data-lucide="check"></i> 保存模型
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: Currency Management ══════ -->
+  <div class="modal-overlay" id="currencyModalOverlay" style="display:none;">
+    <div class="modal modal--sm" id="currencyModal">
+      <div class="modal__header">
+        <h3 class="modal__title">币种管理</h3>
+        <button class="icon-btn" id="currencyModalCloseBtn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal__body">
+        <div id="currencyList"></div>
+        <div class="add-currency-form">
+          <input type="text" id="newCurrencyCode" placeholder="代码 如 JPY" maxlength="5" />
+          <input type="text" id="newCurrencyName" placeholder="名称 如 日元" maxlength="10" />
+          <input type="number" id="newCurrencyRate" placeholder="对CNY汇率" min="0" step="0.0001" />
+          <button class="btn btn--primary btn--sm" id="addCurrencyBtn">
+            <i data-lucide="plus"></i>添加
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: Compare Model Picker ══════ -->
+  <div class="modal-overlay" id="comparePickerOverlay" style="display:none;">
+    <div class="modal" id="comparePickerModal">
+      <div class="modal__header">
+        <h3 class="modal__title">选择对比模型（最多5个）</h3>
+        <button class="icon-btn" id="comparePickerCloseBtn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal__body">
+        <div class="sidebar__search" style="padding:0 0 12px;">
+          <i data-lucide="search"></i>
+          <input type="text" id="compareSearchInput" placeholder="搜索模型..." autocomplete="off" />
+        </div>
+        <div class="picker-list" id="comparePickerList"></div>
+        <div class="modal__footer" style="margin-top:12px;">
+          <button class="btn btn--ghost" id="clearCompareBtn">清空对比</button>
+          <button class="btn btn--primary" id="confirmCompareBtn">
+            <i data-lucide="check"></i> 确定
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: Manage Custom Models ══════ -->
+  <div class="modal-overlay" id="manageModalOverlay" style="display:none;">
+    <div class="modal" id="manageModal">
+      <div class="modal__header">
+        <h3 class="modal__title">管理自定义模型</h3>
+        <button class="icon-btn" id="manageModalCloseBtn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal__body" id="manageModalBody">
+        <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
+          暂无自定义模型
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts (order matters) -->
+  <script src="./data/models.js"></script>
+  <script src="./src/calculator.js"></script>
+  <script src="./src/storage.js"></script>
+  <script src="./src/rate-cache.js"></script>
+  <script src="./src/exchange.js"></script>
+  <script src="./src/renderer.js"></script>
+  <script src="./src/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</body>
+</html>
