@@ -46,22 +46,18 @@ function getParams() {
 
 function refreshAllModels() {
   const custom = Storage.getCustomModels();
-  // Restore Infinity in tiered models from localStorage (JSON serializes Infinity as null)
+  // JSON.stringify serializes Infinity as null — restore for tier thresholds.
+  const restoreInf = (arr, key) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(t => {
+      if (t[key] === null || t[key] === undefined) t[key] = Infinity;
+    });
+  };
   custom.forEach(m => {
-    if (m.pricing?.outputTiers) {
-      m.pricing.outputTiers.forEach(t => {
-        if (t.maxOutputTokens === null || t.maxOutputTokens === undefined) {
-          t.maxOutputTokens = Infinity;
-        }
-      });
-    }
-    if (m.pricing?.inputTiers) {
-      m.pricing.inputTiers.forEach(t => {
-        if (t.maxInputTokens === null || t.maxInputTokens === undefined) {
-          t.maxInputTokens = Infinity;
-        }
-      });
-    }
+    const p = m.pricing;
+    if (!p) return;
+    if (p.type === "tiered_by_input")  restoreInf(p.tiers, "maxInputTokens");
+    if (p.type === "tiered_by_output") restoreInf(p.tiers, "maxOutputTokens");
   });
   AppState.allModels = [...window.BUILTIN_MODELS, ...custom];
 }
@@ -116,9 +112,9 @@ function applyCacheRate() {
     document.getElementById("cacheHitRate").value = rate;
     toggleCacheCalc();
     triggerCalculate();
-    Renderer.toast(`缓存命中率已设为 ${rate}%`, "success", 2000);
+    Renderer.toast(I18n.t("toast.cache.applied", { rate }), "success", 2000);
   } else {
-    Renderer.toast("请输入命中和未命中 Token 数", "warning");
+    Renderer.toast(I18n.t("toast.cache.needBoth"), "warning");
   }
 }
 
@@ -187,11 +183,11 @@ async function initExchangeRate() {
     Renderer.renderExchangeBadge(rate, source, displayDate);
 
     if (source === "api") {
-      Renderer.toast("已写入今日汇率缓存", "success", 2000);
+      Renderer.toast(I18n.t("toast.rate.updated"), "success", 2000);
     } else if (source === "stale") {
-      Renderer.toast("实时汇率获取失败，已使用旧缓存", "warning");
+      Renderer.toast(I18n.t("toast.rate.staleCache"), "warning");
     } else if (source === "default") {
-      Renderer.toast("无法获取实时汇率，使用默认值", "warning");
+      Renderer.toast(I18n.t("toast.rate.defaulted"), "warning");
     }
   } catch {
     Renderer.renderExchangeBadge(7.25, "default", Exchange.formatDisplayDate(Date.now()));
@@ -205,10 +201,10 @@ function openModelModal(existingModel = null) {
   const title   = document.getElementById("modalTitle");
   const form    = document.getElementById("modelForm");
 
-  title.textContent = existingModel ? "编辑模型" : "添加自定义模型";
+  title.textContent = I18n.t(existingModel ? "modal.model.edit" : "modal.model.add");
   form.reset();
   // Clear all tier row containers
-  ["fm-tier-output-rows", "fm-tier-input-rows", "fm-tier-both-input-rows", "fm-tier-both-output-rows"].forEach(id => {
+  ["fm-tier-by-input-rows", "fm-tier-by-output-rows"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = "";
   });
@@ -217,7 +213,7 @@ function openModelModal(existingModel = null) {
   const currencySelect = document.getElementById("fm-currency");
   currencySelect.innerHTML = AppState.allCurrencies.map(c =>
     `<option value="${c.code}">${c.code} — ${c.name}</option>`
-  ).join('') + `<option value="__add__">＋ 添加新币种...</option>`;
+  ).join('') + `<option value="__add__">${I18n.t("modal.model.currency.addNew")}</option>`;
 
   if (existingModel) {
     document.getElementById("fm-name").value     = existingModel.name;
@@ -232,29 +228,16 @@ function openModelModal(existingModel = null) {
       document.getElementById("fm-cacheHit").value = p.cacheHit ?? "";
       document.getElementById("fm-output").value   = p.output || "";
 
-    } else if (p.type === "tiered_output") {
-      document.getElementById("fm-tier-input").value    = p.input || "";
-      document.getElementById("fm-tier-cacheHit").value = p.cacheHit ?? "";
-      (p.outputTiers || []).forEach(tier => {
-        const maxLabel = tier.maxOutputTokens === Infinity ? "" : tier.maxOutputTokens;
-        addTierRow("fm-tier-output-rows", "output", maxLabel, tier.price);
+    } else if (p.type === "tiered_by_input") {
+      (p.tiers || []).forEach(tier => {
+        const maxLabel = tier.maxInputTokens === Infinity ? "" : tier.maxInputTokens;
+        addTierRow("fm-tier-by-input-rows", "by-input", maxLabel, tier.input, tier.cacheHit, tier.output);
       });
 
-    } else if (p.type === "tiered_input") {
-      document.getElementById("fm-tier-output-fixed").value = p.output || "";
-      (p.inputTiers || []).forEach(tier => {
-        const maxLabel = tier.maxInputTokens === Infinity ? "" : tier.maxInputTokens;
-        addTierRow("fm-tier-input-rows", "input", maxLabel, tier.price, tier.cacheHit);
-      });
-
-    } else if (p.type === "tiered_both") {
-      (p.inputTiers || []).forEach(tier => {
-        const maxLabel = tier.maxInputTokens === Infinity ? "" : tier.maxInputTokens;
-        addTierRow("fm-tier-both-input-rows", "input", maxLabel, tier.price, tier.cacheHit);
-      });
-      (p.outputTiers || []).forEach(tier => {
+    } else if (p.type === "tiered_by_output") {
+      (p.tiers || []).forEach(tier => {
         const maxLabel = tier.maxOutputTokens === Infinity ? "" : tier.maxOutputTokens;
-        addTierRow("fm-tier-both-output-rows", "output", maxLabel, tier.price);
+        addTierRow("fm-tier-by-output-rows", "by-output", maxLabel, tier.input, tier.cacheHit, tier.output);
       });
     }
 
@@ -272,81 +255,88 @@ function closeModelModal() {
 }
 
 function togglePricingSection(type) {
-  document.getElementById("fm-standard-section").style.display = type === "standard" ? "block" : "none";
-  document.getElementById("fm-tier-output-section").style.display = type === "tiered_output" ? "block" : "none";
-  document.getElementById("fm-tier-input-section").style.display = type === "tiered_input" ? "block" : "none";
-  document.getElementById("fm-tier-both-section").style.display = type === "tiered_both" ? "block" : "none";
+  const mapping = {
+    "standard":         "fm-standard-section",
+    "tiered_by_input":  "fm-tier-by-input-section",
+    "tiered_by_output": "fm-tier-by-output-section",
+  };
+  Object.entries(mapping).forEach(([t, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = type === t ? "block" : "none";
+  });
 }
 
 let tierRowCounter = 0;
 /**
- * Add a tier row to the specified container.
- * @param {string} containerId - ID of the container div
- * @param {"output"|"input"} tierType - whether this is an output or input tier row
- * @param {string|number} maxVal - max token threshold
- * @param {string|number} price - price per million tokens
- * @param {string|number|null} cacheHitVal - cache hit price (only for input tiers)
+ * Add a tier row containing threshold + input/output/cacheHit prices.
+ * @param {string} containerId
+ * @param {"by-input"|"by-output"} tierType  what determines this tier
+ * @param {string|number} maxVal             max token threshold (empty = ∞)
+ * @param {string|number} inputPrice
+ * @param {string|number|null} cacheHitVal
+ * @param {string|number} outputPrice
  */
-function addTierRow(containerId, tierType = "output", maxVal = "", price = "", cacheHitVal = null) {
+function addTierRow(containerId, tierType, maxVal = "", inputPrice = "", cacheHitVal = null, outputPrice = "") {
   const container = document.getElementById(containerId);
   const idx = tierRowCounter++;
   const row = document.createElement("div");
   row.className = "tier-input-row";
+  row.dataset.tierType = tierType;
 
-  const label = tierType === "input" ? "输入" : "输出";
-  const maxKey = tierType === "input" ? "maxInputTokens" : "maxOutputTokens";
-
-  let cacheHitHtml = "";
-  if (tierType === "input") {
-    cacheHitHtml = `
-      <span>缓存</span>
-      <input type="number" name="tier-cache-${idx}" placeholder="0.31" min="0" step="0.001" value="${cacheHitVal ?? ""}" style="width:70px;" />`;
-  }
-
+  const side = I18n.t(tierType === "by-input" ? "tier.side.input" : "tier.side.output");
   row.innerHTML = `
-    <span>${label} ≤</span>
-    <input type="text" name="tier-max-${idx}" placeholder="留空=无上限" value="${maxVal}" style="width:84px;" />
-    <span>tokens →</span>
-    <input type="number" name="tier-price-${idx}" placeholder="5.00" min="0" step="0.001" value="${price}" style="width:80px;" />
-    <span>/ M</span>
-    ${cacheHitHtml}
+    <span>${I18n.t("modal.model.tier.row.le", { side })}</span>
+    <input type="text"   name="tier-max-${idx}"    placeholder="${I18n.t("modal.model.tier.row.empty")}" value="${maxVal}" style="width:84px;" />
+    <span>${I18n.t("modal.model.tier.row.toks")}</span>
+    <span>${I18n.t("modal.model.tier.row.in")}</span>
+    <input type="number" name="tier-input-${idx}"  placeholder="1.25"   min="0" step="0.001" value="${inputPrice}"  style="width:70px;" />
+    <span>${I18n.t("modal.model.tier.row.out")}</span>
+    <input type="number" name="tier-output-${idx}" placeholder="10.00"  min="0" step="0.001" value="${outputPrice}" style="width:70px;" />
+    <span>${I18n.t("modal.model.tier.row.cache")}</span>
+    <input type="number" name="tier-cache-${idx}"  placeholder="0.31"   min="0" step="0.001" value="${cacheHitVal ?? ""}" style="width:70px;" />
+    <span>${I18n.t("modal.model.tier.row.unit")}</span>
     <button type="button" class="icon-btn icon-btn--danger tier-remove-btn">
       <i data-lucide="x"></i>
     </button>`;
+
   container.appendChild(row);
   lucide.createIcons();
-
   row.querySelector(".tier-remove-btn").addEventListener("click", () => row.remove());
 }
 
-/** Parse tier rows from a container into an array of tier objects */
+/**
+ * Parse tier rows from a container into an array of tier objects.
+ * @param {string} containerId
+ * @param {"by-input"|"by-output"} tierType
+ */
 function parseTierRows(containerId, tierType) {
   const rows = document.querySelectorAll(`#${containerId} .tier-input-row`);
   const tiers = [];
+
+  const parseMax = (str) =>
+    (!str || str === "∞" || str.toLowerCase() === "infinity")
+      ? Infinity
+      : parseFloat(str);
+
   rows.forEach(row => {
     const inputs = row.querySelectorAll("input");
-    const maxStr = inputs[0]?.value?.trim();
-    const price  = parseFloat(inputs[1]?.value);
-    if (!isNaN(price)) {
-      const maxVal = (!maxStr || maxStr === "∞" || maxStr.toLowerCase() === "infinity")
-        ? Infinity
-        : parseFloat(maxStr);
-      if (!isNaN(maxVal)) {
-        if (tierType === "input") {
-          const cacheHit = inputs[2] ? (inputs[2].value ? parseFloat(inputs[2].value) : null) : null;
-          tiers.push({ maxInputTokens: maxVal, price, cacheHit });
-        } else {
-          tiers.push({ maxOutputTokens: maxVal, price });
-        }
-      }
-    }
+    const maxVal = parseMax(inputs[0]?.value?.trim());
+    if (isNaN(maxVal)) return;
+
+    const inputPrice  = parseFloat(inputs[1]?.value);
+    const outputPrice = parseFloat(inputs[2]?.value);
+    const cacheStr    = inputs[3]?.value?.trim();
+    const cacheHit    = cacheStr ? parseFloat(cacheStr) : null;
+    if (isNaN(inputPrice) || isNaN(outputPrice)) return;
+
+    const tier = { input: inputPrice, output: outputPrice, cacheHit };
+    if (tierType === "by-input") tier.maxInputTokens  = maxVal;
+    else                         tier.maxOutputTokens = maxVal;
+    tiers.push(tier);
   });
-  // Sort tiers
-  if (tierType === "input") {
-    tiers.sort((a, b) => a.maxInputTokens - b.maxInputTokens);
-  } else {
-    tiers.sort((a, b) => a.maxOutputTokens - b.maxOutputTokens);
-  }
+
+  const sortKey = tierType === "by-input" ? "maxInputTokens" : "maxOutputTokens";
+  tiers.sort((a, b) => a[sortKey] - b[sortKey]);
   return tiers;
 }
 
@@ -359,7 +349,7 @@ function handleModelFormSubmit(e) {
   const currency = document.getElementById("fm-currency").value;
 
   if (!name || !provider || currency === "__add__") {
-    Renderer.toast("请填写所有必填项", "error");
+    Renderer.toast(I18n.t("toast.model.missingFields"), "error");
     return;
   }
 
@@ -372,25 +362,21 @@ function handleModelFormSubmit(e) {
       output:   parseFloat(document.getElementById("fm-output").value)   || 0,
       cacheHit: document.getElementById("fm-cacheHit").value ? parseFloat(document.getElementById("fm-cacheHit").value) : null,
     };
-  } else if (type === "tiered_output") {
+  } else if (type === "tiered_by_input") {
     pricing = {
-      type: "tiered_output",
-      input:    parseFloat(document.getElementById("fm-tier-input").value)    || 0,
-      cacheHit: document.getElementById("fm-tier-cacheHit").value ? parseFloat(document.getElementById("fm-tier-cacheHit").value) : null,
-      outputTiers: parseTierRows("fm-tier-output-rows", "output"),
+      type: "tiered_by_input",
+      tiers: parseTierRows("fm-tier-by-input-rows", "by-input"),
     };
-  } else if (type === "tiered_input") {
+  } else if (type === "tiered_by_output") {
     pricing = {
-      type: "tiered_input",
-      output: parseFloat(document.getElementById("fm-tier-output-fixed").value) || 0,
-      inputTiers: parseTierRows("fm-tier-input-rows", "input"),
+      type: "tiered_by_output",
+      tiers: parseTierRows("fm-tier-by-output-rows", "by-output"),
     };
-  } else if (type === "tiered_both") {
-    pricing = {
-      type: "tiered_both",
-      inputTiers:  parseTierRows("fm-tier-both-input-rows", "input"),
-      outputTiers: parseTierRows("fm-tier-both-output-rows", "output"),
-    };
+  }
+
+  if (pricing.tiers && pricing.tiers.length === 0) {
+    Renderer.toast(I18n.t("toast.tier.needOne"), "error");
+    return;
   }
 
   const form   = document.getElementById("modelForm");
@@ -407,7 +393,7 @@ function handleModelFormSubmit(e) {
   refreshAllModels();
   Renderer.renderModelList(AppState.allModels, AppState.selectedModelId, AppState.searchQuery);
   closeModelModal();
-  Renderer.toast(`模型「${name}」已保存`, "success");
+  Renderer.toast(I18n.t("toast.model.saved", { name }), "success");
   triggerCalculate();
 }
 
@@ -428,19 +414,19 @@ function handleAddCurrency() {
   const rate = parseFloat(document.getElementById("newCurrencyRate").value);
 
   if (!code || !name || isNaN(rate) || rate <= 0) {
-    Renderer.toast("请填写完整的币种信息", "error");
+    Renderer.toast(I18n.t("toast.currency.incomplete"), "error");
     return;
   }
 
   if (code.length > 5) {
-    Renderer.toast("币种代码最多5个字符", "error");
+    Renderer.toast(I18n.t("toast.currency.codeTooLong"), "error");
     return;
   }
 
   Storage.saveCustomCurrency({ code, name, symbol: code, toCny: rate });
   refreshAllCurrencies();
   Renderer.renderCurrencyList(AppState.allCurrencies);
-  Renderer.toast(`币种「${code}」已添加`, "success");
+  Renderer.toast(I18n.t("toast.currency.added", { code }), "success");
 
   // Reset inputs
   document.getElementById("newCurrencyCode").value = "";
@@ -467,7 +453,7 @@ function toggleCompareModel(modelId) {
     tempCompareIds.splice(idx, 1);
   } else {
     if (tempCompareIds.length >= 5) {
-      Renderer.toast("对比列表最多 5 个模型", "warning");
+      Renderer.toast(I18n.t("toast.compare.max"), "warning");
       return;
     }
     tempCompareIds.push(modelId);
@@ -486,7 +472,7 @@ function confirmCompare() {
     document.getElementById("compareTableWrap").innerHTML = `
       <div class="compare-empty">
         <i data-lucide="git-compare"></i>
-        <span>右键模型 → "加入对比"，或点击上方按钮</span>
+        <span>${I18n.t("compare.empty")}</span>
       </div>`;
     lucide.createIcons();
   }
@@ -503,6 +489,45 @@ function closeManageModal() {
   document.getElementById("manageModalOverlay").style.display = "none";
 }
 
+// ═══════════ Help Modal ═══════════
+function openHelpModal() {
+  document.getElementById("helpModalOverlay").style.display = "flex";
+}
+function closeHelpModal() {
+  document.getElementById("helpModalOverlay").style.display = "none";
+}
+
+// ═══════════ Language Switcher ═══════════
+function renderLangMenu() {
+  const menu = document.getElementById("langMenu");
+  const current = I18n.getCurrent();
+  menu.innerHTML = I18n.getLanguages().map(l => `
+    <div class="lang-menu__item ${l.code === current ? 'lang-menu__item--active' : ''}" data-lang-code="${l.code}">
+      <span class="lang-menu__short">${l.short}</span>
+      <span class="lang-menu__name">${l.name}</span>
+      ${l.code === current ? '<i data-lucide="check"></i>' : ''}
+    </div>
+  `).join('');
+  lucide.createIcons();
+}
+
+function toggleLangMenu() {
+  const menu = document.getElementById("langMenu");
+  const visible = menu.style.display !== "none";
+  if (visible) {
+    menu.style.display = "none";
+  } else {
+    renderLangMenu();
+    menu.style.display = "block";
+  }
+}
+
+function updateLangSwitcherLabel() {
+  const current = I18n.getCurrent();
+  const lang = I18n.getLanguages().find(l => l.code === current);
+  if (lang) document.getElementById("langSwitcherLabel").textContent = lang.short;
+}
+
 // ═══════════ Context Menu ═══════════
 function showModelContextMenu(event, model) {
   document.querySelector(".context-menu")?.remove();
@@ -517,18 +542,18 @@ function showModelContextMenu(event, model) {
 
   menu.innerHTML = `
     <div class="context-menu__item" data-action="select">
-      <i data-lucide="check-circle"></i> 选中此模型
+      <i data-lucide="check-circle"></i> ${I18n.t("menu.select")}
     </div>
     <div class="context-menu__item" data-action="compare">
-      <i data-lucide="git-compare"></i> 加入对比
+      <i data-lucide="git-compare"></i> ${I18n.t("menu.compare")}
     </div>
     ${model.isCustom ? `
     <div class="context-menu__divider"></div>
     <div class="context-menu__item" data-action="edit">
-      <i data-lucide="edit-2"></i> 编辑
+      <i data-lucide="edit-2"></i> ${I18n.t("menu.edit")}
     </div>
     <div class="context-menu__item context-menu__item--danger" data-action="delete">
-      <i data-lucide="trash-2"></i> 删除
+      <i data-lucide="trash-2"></i> ${I18n.t("menu.delete")}
     </div>` : ''}
   `;
 
@@ -548,19 +573,19 @@ function showModelContextMenu(event, model) {
       selectModel(model.id);
     } else if (action === "compare") {
       if (AppState.compareModelIds.length >= 5) {
-        Renderer.toast("对比列表最多 5 个模型", "warning");
+        Renderer.toast(I18n.t("toast.compare.max"), "warning");
       } else if (!AppState.compareModelIds.includes(model.id)) {
         AppState.compareModelIds.push(model.id);
         Storage.saveCompareList(AppState.compareModelIds);
         triggerCalculate();
-        Renderer.toast(`「${model.name}」已加入对比`, "success");
+        Renderer.toast(I18n.t("toast.compare.added", { name: model.name }), "success");
       } else {
-        Renderer.toast("该模型已在对比列表中", "info");
+        Renderer.toast(I18n.t("toast.compare.exists"), "info");
       }
     } else if (action === "edit") {
       openModelModal(model);
     } else if (action === "delete") {
-      if (confirm(`确定删除自定义模型「${model.name}」吗？`)) {
+      if (confirm(I18n.t("confirm.delete.model", { name: model.name }))) {
         Storage.deleteCustomModel(model.id);
         AppState.compareModelIds = AppState.compareModelIds.filter(id => id !== model.id);
         Storage.saveCompareList(AppState.compareModelIds);
@@ -570,7 +595,7 @@ function showModelContextMenu(event, model) {
           AppState.selectedModelId = null;
           Renderer.renderResults(null);
         }
-        Renderer.toast(`「${model.name}」已删除`, "success");
+        Renderer.toast(I18n.t("toast.model.deleted", { name: model.name }), "success");
         triggerCalculate();
       }
     }
@@ -711,7 +736,7 @@ function bindEvents() {
       Storage.deleteCustomCurrency(code);
       refreshAllCurrencies();
       Renderer.renderCurrencyList(AppState.allCurrencies);
-      Renderer.toast(`币种「${code}」已删除`, "success");
+      Renderer.toast(I18n.t("toast.currency.deleted", { code }), "success");
     }
   });
 
@@ -737,7 +762,7 @@ function bindEvents() {
     if (deleteBtn) {
       const modelId = deleteBtn.dataset.deleteModel;
       const model = AppState.allModels.find(m => m.id === modelId);
-      if (model && confirm(`确定删除「${model.name}」吗？`)) {
+      if (model && confirm(I18n.t("confirm.delete.simple", { name: model.name }))) {
         Storage.deleteCustomModel(modelId);
         AppState.compareModelIds = AppState.compareModelIds.filter(id => id !== modelId);
         Storage.saveCompareList(AppState.compareModelIds);
@@ -748,7 +773,7 @@ function bindEvents() {
           AppState.selectedModelId = null;
           Renderer.renderResults(null);
         }
-        Renderer.toast(`已删除`, "success");
+        Renderer.toast(I18n.t("toast.deleted"), "success");
         triggerCalculate();
       }
     }
@@ -797,7 +822,7 @@ function bindEvents() {
         document.getElementById("compareTableWrap").innerHTML = `
           <div class="compare-empty">
             <i data-lucide="git-compare"></i>
-            <span>右键模型 → "加入对比"，或点击上方按钮</span>
+            <span>${I18n.t("compare.empty")}</span>
           </div>`;
         lucide.createIcons();
       }
@@ -811,14 +836,14 @@ function bindEvents() {
     const model = AppState.allModels.find(m => m.id === modelId);
     if (!model) return;
     if (AppState.compareModelIds.length >= 5) {
-      Renderer.toast("对比列表最多 5 个模型", "warning");
+      Renderer.toast(I18n.t("toast.compare.max"), "warning");
     } else if (!AppState.compareModelIds.includes(modelId)) {
       AppState.compareModelIds.push(modelId);
       Storage.saveCompareList(AppState.compareModelIds);
       triggerCalculate();
-      Renderer.toast(`「${model.name}」已加入对比`, "success");
+      Renderer.toast(I18n.t("toast.compare.added", { name: model.name }), "success");
     } else {
-      Renderer.toast("该模型已在对比列表中", "info");
+      Renderer.toast(I18n.t("toast.compare.exists"), "info");
     }
   });
 
@@ -833,7 +858,7 @@ function bindEvents() {
     const { outcome } = await deferredInstallPrompt.userChoice;
     if (outcome === "accepted") {
       document.getElementById("installPwaBtn").style.display = "none";
-      Renderer.toast("应用已安装", "success");
+      Renderer.toast(I18n.t("toast.pwa.installed"), "success");
     }
     deferredInstallPrompt = null;
   });
@@ -843,6 +868,32 @@ function bindEvents() {
   document.getElementById("importBtn")?.addEventListener("click", () => document.getElementById("importFileInput")?.click());
   document.getElementById("importFileInput")?.addEventListener("change", handleImportFile);
 
+  // Help modal
+  document.getElementById("helpBtn").addEventListener("click", openHelpModal);
+  document.getElementById("helpModalCloseBtn").addEventListener("click", closeHelpModal);
+  document.getElementById("helpModalOverlay").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeHelpModal();
+  });
+
+  // Language switcher
+  document.getElementById("langSwitcherBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleLangMenu();
+  });
+  document.getElementById("langMenu").addEventListener("click", (e) => {
+    const item = e.target.closest("[data-lang-code]");
+    if (!item) return;
+    I18n.setLanguage(item.dataset.langCode);
+    document.getElementById("langMenu").style.display = "none";
+  });
+  // Close lang menu on outside click
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#langSwitcher")) {
+      const menu = document.getElementById("langMenu");
+      if (menu) menu.style.display = "none";
+    }
+  });
+
   // Keyboard: Escape closes modals
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -850,8 +901,10 @@ function bindEvents() {
       closeCurrencyModal();
       closeComparePicker();
       closeManageModal();
+      closeHelpModal();
       closeSidebar();
       document.querySelector(".context-menu")?.remove();
+      document.getElementById("langMenu").style.display = "none";
     }
   });
 }
@@ -872,7 +925,7 @@ function exportCustomModels() {
   a.download = `tokenlens_backup_${new Date().toISOString().split("T")[0]}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  Renderer.toast("导出成功", "success");
+  Renderer.toast(I18n.t("toast.export.success"), "success");
 }
 
 function handleImportFile(event) {
@@ -909,9 +962,9 @@ function handleImportFile(event) {
       Renderer.renderModelList(AppState.allModels, AppState.selectedModelId, AppState.searchQuery);
       triggerCalculate();
       
-      Renderer.toast(`成功导入 ${importedModels} 个模型，${importedCurrencies} 个币种`, "success");
+      Renderer.toast(I18n.t("toast.import.success", { models: importedModels, currencies: importedCurrencies }), "success");
     } catch (err) {
-      Renderer.toast("导入失败：文件格式错误", "error");
+      Renderer.toast(I18n.t("toast.import.fail"), "error");
     }
     // reset input
     event.target.value = "";
@@ -921,9 +974,30 @@ function handleImportFile(event) {
 
 // ═══════════ Init ═══════════
 async function init() {
-  // 1. Restore theme
+  // 1. Restore theme + bootstrap i18n
   const prefs = Storage.getPreferences();
   applyTheme(prefs.theme ?? "light");
+  I18n.init(prefs.language);
+  I18n.apply();
+  updateLangSwitcherLabel();
+
+  // Re-render dynamic UI whenever the language changes.
+  I18n.onChange(() => {
+    updateLangSwitcherLabel();
+    Renderer.renderModelList(AppState.allModels, AppState.selectedModelId, AppState.searchQuery);
+    Renderer.refreshExchangeBadge();
+    if (AppState.selectedModelId) {
+      const model = AppState.allModels.find(m => m.id === AppState.selectedModelId);
+      if (model) triggerCalculate();
+    }
+    if (AppState.compareModelIds.length > 0) triggerCalculate();
+    if (document.getElementById("manageModalOverlay").style.display === "flex") {
+      Renderer.renderManageModelsList(Storage.getCustomModels());
+    }
+    if (document.getElementById("currencyModalOverlay").style.display === "flex") {
+      Renderer.renderCurrencyList(AppState.allCurrencies);
+    }
+  });
 
   // 2. Restore last params
   const lp = prefs.lastParams ?? {};

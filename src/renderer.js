@@ -3,6 +3,9 @@
 
 const Renderer = (() => {
 
+  // Track the last exchange badge render so we can replay it in the new language.
+  let lastExchange = null;
+
   // ── Formatters ──
   function fmtUSD(val) {
     if (isNaN(val) || val === null || val === undefined) return "—";
@@ -40,7 +43,7 @@ const Renderer = (() => {
       container.innerHTML = `
         <div class="sidebar-empty">
           <i data-lucide="search-x"></i>
-          <span>未找到匹配模型</span>
+          <span>${I18n.t("sidebar.empty")}</span>
         </div>`;
       lucide.createIcons();
       return;
@@ -51,6 +54,9 @@ const Renderer = (() => {
       if (!groups[model.provider]) groups[model.provider] = [];
       groups[model.provider].push(model);
     });
+
+    const tierTitle = I18n.t("banner.badge.tier");
+    const customLabel = I18n.t("sidebar.badge.custom");
 
     const html = Object.entries(groups).map(([provider, models]) => `
       <div class="model-group">
@@ -66,9 +72,9 @@ const Renderer = (() => {
               <span class="model-item__name">${model.name}</span>
               <div class="model-item__badges">
                 ${model.pricing.type !== 'standard' ? `
-                  <span class="badge badge--tier" title="阶梯定价"><i data-lucide="layers"></i></span>` : ''}
+                  <span class="badge badge--tier" title="${tierTitle}"><i data-lucide="layers"></i></span>` : ''}
                 <span class="badge badge--currency">${model.currency}</span>
-                ${model.isCustom ? `<span class="badge badge--custom">自定义</span>` : ''}
+                ${model.isCustom ? `<span class="badge badge--custom">${customLabel}</span>` : ''}
               </div>
             </div>
           `).join('')}
@@ -95,81 +101,67 @@ const Renderer = (() => {
   }
 
   // ── Tier Card ──
+  // Renders the "current tier" panel for tiered_by_input / tiered_by_output models.
+  // Each row shows the threshold range and the full input/output/cache prices for that tier.
   function renderTierCard(pricing, inputTokens, outputTokens) {
     const card = document.getElementById("tierCard");
     const rows = document.getElementById("tierCardRows");
 
-    if (pricing.type === "standard") {
+    if (!pricing || pricing.type === "standard") {
       card.style.display = "none";
       return;
     }
 
     card.style.display = "block";
+
+    const byInput = pricing.type === "tiered_by_input";
+    const key     = byInput ? "maxInputTokens"  : "maxOutputTokens";
+    const side    = byInput ? I18n.t("tier.side.input") : I18n.t("tier.side.output");
+    const tokens  = byInput ? inputTokens       : outputTokens;
+    const list    = pricing.tiers || [];
+
+    const rangeLabel = (tier, idx) => {
+      const cur  = tier[key];
+      const prev = idx > 0 ? list[idx - 1][key] : 0;
+      if (cur === Infinity) return I18n.t("tier.row.gt", { side, n: prev.toLocaleString() });
+      if (idx === 0)        return I18n.t("tier.row.le", { side, n: cur.toLocaleString() });
+      return I18n.t("tier.row.range", { side, a: (prev + 1).toLocaleString(), b: cur.toLocaleString() });
+    };
+    const isInRange = (tier, idx) => {
+      const prev = idx > 0 ? list[idx - 1][key] : 0;
+      return tokens <= tier[key] && (idx === 0 || tokens > prev);
+    };
+
     let html = `
       <div class="tier-table-header" style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); padding: 0 12px 6px; border-bottom: 1px dashed rgba(245,158,11,0.2); margin-bottom: 8px;">
-        <span>Token 用量范围</span>
-        <span>单价（/ 百万 tokens）</span>
+        <span>${I18n.t("tier.range.column", { side })}</span>
+        <span>${I18n.t("tier.price.column")}</span>
       </div>
+      <div class="tier-section-label">${I18n.t(byInput ? "tier.section.byInput" : "tier.section.byOutput")}</div>
     `;
-
-    // Render input tiers (for tiered_input / tiered_both)
-    if (pricing.inputTiers) {
-      html += `<div class="tier-section-label">输入阶梯：</div>`;
-      html += pricing.inputTiers.map((tier, idx) => {
-        const prevMax = idx > 0 ? pricing.inputTiers[idx - 1].maxInputTokens : 0;
-        const isActive = inputTokens <= tier.maxInputTokens &&
-          (idx === 0 || inputTokens > prevMax);
-
-        const label = tier.maxInputTokens === Infinity
-          ? `输入 > ${prevMax.toLocaleString()} tokens`
-          : idx === 0
-            ? `输入 ≤ ${tier.maxInputTokens.toLocaleString()} tokens`
-            : `输入 ${(prevMax + 1).toLocaleString()} ~ ${tier.maxInputTokens.toLocaleString()} tokens`;
-
-        const cacheInfo = tier.cacheHit != null ? ` · 缓存 ${tier.cacheHit.toFixed(3)}` : '';
-
-        return `
-          <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
-            <div class="tier-row__label">
-              ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
-              ${label}
-            </div>
-            <div class="tier-row__price">
-              ${tier.price.toFixed(2)}${cacheInfo} / M
-              ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
-            </div>
-          </div>`;
-      }).join('');
-    }
-
-    // Render output tiers (for tiered_output / tiered_both)
-    if (pricing.outputTiers) {
-      if (pricing.inputTiers) html += `<div style="margin-top:8px;"></div>`;
-      html += `<div class="tier-section-label">输出阶梯：</div>`;
-      html += pricing.outputTiers.map((tier, idx) => {
-        const prevMax = idx > 0 ? pricing.outputTiers[idx - 1].maxOutputTokens : 0;
-        const isActive = outputTokens <= tier.maxOutputTokens &&
-          (idx === 0 || outputTokens > prevMax);
-
-        const label = tier.maxOutputTokens === Infinity
-          ? `输出 > ${prevMax.toLocaleString()} tokens`
-          : idx === 0
-            ? `输出 ≤ ${tier.maxOutputTokens.toLocaleString()} tokens`
-            : `输出 ${(prevMax + 1).toLocaleString()} ~ ${tier.maxOutputTokens.toLocaleString()} tokens`;
-
-        return `
-          <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
-            <div class="tier-row__label">
-              ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
-              ${label}
-            </div>
-            <div class="tier-row__price">
-              ${tier.price.toFixed(2)} / M tokens
-              ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
-            </div>
-          </div>`;
-      }).join('');
-    }
+    html += list.map((tier, idx) => {
+      const active = isInRange(tier, idx);
+      const label  = rangeLabel(tier, idx);
+      const cache  = tier.cacheHit != null
+        ? I18n.t("tier.row.cacheSuffix", { n: tier.cacheHit.toFixed(3) })
+        : '';
+      const priceLine = I18n.t("tier.row.price", {
+        input:  Number(tier.input  ?? 0).toFixed(2),
+        output: Number(tier.output ?? 0).toFixed(2),
+        cache,
+      });
+      return `
+        <div class="tier-row ${active ? 'tier-row--active' : ''}">
+          <div class="tier-row__label">
+            ${active ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
+            ${label}
+          </div>
+          <div class="tier-row__price">
+            ${priceLine}
+            ${active ? `<span class="tier-row__current">${I18n.t("tier.row.current")}</span>` : ''}
+          </div>
+        </div>`;
+    }).join('');
 
     rows.innerHTML = html;
     lucide.createIcons();
@@ -182,7 +174,7 @@ const Renderer = (() => {
     if (!result || !model) {
       tbody.innerHTML = `
         <tr class="results-empty">
-          <td colspan="3">← 请先从左侧选择一个模型</td>
+          <td colspan="3">${I18n.t("results.empty")}</td>
         </tr>`;
       document.getElementById("resultsBreakdown").style.display = "none";
       return;
@@ -195,21 +187,21 @@ const Renderer = (() => {
     tbody.innerHTML = `
       <tr>
         <td class="results-row__label">
-          <i data-lucide="zap"></i> 单次成本
+          <i data-lucide="zap"></i> ${I18n.t("results.row.single")}
         </td>
         <td class="results-row__usd">${fmtUSD(singleCostUSD)}</td>
         <td class="results-row__cny">${fmtCNY(singleCostCNY)}</td>
       </tr>
       <tr>
         <td class="results-row__label">
-          <i data-lucide="calendar"></i> 每日估算
+          <i data-lucide="calendar"></i> ${I18n.t("results.row.daily")}
         </td>
         <td class="results-row__usd">${fmtUSD(dailyCostUSD)}</td>
         <td class="results-row__cny">${fmtCNY(dailyCostCNY)}</td>
       </tr>
       <tr class="results-row--highlight">
         <td class="results-row__label">
-          <i data-lucide="trending-up"></i> 每月估算
+          <i data-lucide="trending-up"></i> ${I18n.t("results.row.monthly")}
         </td>
         <td class="results-row__usd">${fmtUSD(monthlyCostUSD)}</td>
         <td class="results-row__cny highlight-cny">${fmtCNY(monthlyCostCNY)}</td>
@@ -217,11 +209,11 @@ const Renderer = (() => {
 
     // Check if cache is supported
     const pricing = model.pricing;
-    let cacheSupported = true;
-    if (pricing.type === "standard" || pricing.type === "tiered_output") {
-      cacheSupported = pricing.cacheHit !== null;
-    } else if (pricing.inputTiers) {
-      cacheSupported = pricing.inputTiers.some(t => t.cacheHit !== null);
+    let cacheSupported;
+    if (pricing.type === "standard") {
+      cacheSupported = pricing.cacheHit != null;
+    } else {
+      cacheSupported = (pricing.tiers || []).some(t => t.cacheHit != null);
     }
 
     if (!cacheSupported) {
@@ -229,7 +221,7 @@ const Renderer = (() => {
         <tr>
           <td colspan="3" style="padding:8px 16px; font-size:12px; color:var(--text-muted); text-align:center; background:var(--bg-base);">
             <i data-lucide="info" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>
-            此模型不支持缓存定价，缓存命中率设置不会影响费用
+            ${I18n.t("results.cache.unsupported")}
           </td>
         </tr>`;
     }
@@ -245,21 +237,28 @@ const Renderer = (() => {
     const el = document.getElementById("resultsBreakdown");
     el.style.display = "flex";
 
-    const { inputCost, outputCost, inputPercent, outputPercent, outputPricePerM } = detail;
+    const { inputCost, outputCost, inputPercent, outputPercent,
+            inputPricePerM, outputPricePerM, cacheHitPricePerM } = detail;
+
+    const fmt = (v) => Number(v ?? 0).toFixed(3);
 
     document.getElementById("breakdownLabels").innerHTML = `
       <div class="breakdown-label">
         <span class="breakdown-label__dot" style="background:var(--accent-sky)"></span>
-        <span class="breakdown-label__name">输入成本</span>
+        <span class="breakdown-label__name">${I18n.t("results.breakdown.input")}</span>
         <span class="breakdown-label__pct">${inputPercent}%</span>
       </div>
       <div class="breakdown-label">
         <span class="breakdown-label__dot" style="background:var(--brand-500)"></span>
-        <span class="breakdown-label__name">输出成本</span>
+        <span class="breakdown-label__name">${I18n.t("results.breakdown.output")}</span>
         <span class="breakdown-label__pct">${outputPercent}%</span>
       </div>
       <div class="breakdown-label breakdown-label--note">
-        <span>实际输出单价：${outputPricePerM.toFixed(3)} / M</span>
+        <span>${I18n.t("results.breakdown.note", {
+          input:  fmt(inputPricePerM),
+          output: fmt(outputPricePerM),
+          cache:  fmt(cacheHitPricePerM),
+        })}</span>
       </div>`;
 
     // Chart.js may not be loaded yet
@@ -318,29 +317,30 @@ const Renderer = (() => {
       wrap.innerHTML = `
         <div class="compare-empty">
           <i data-lucide="git-compare"></i>
-          <span>右键模型 → "加入对比"，或点击上方按钮</span>
+          <span>${I18n.t("compare.empty")}</span>
         </div>`;
       lucide.createIcons();
       return;
     }
 
     const minCNY = Math.min(...batchResults.map(r => r.result.singleCostCNY));
+    const removeTitle = I18n.t("compare.remove");
 
     const headerCells = batchResults.map(({ model }) => `
       <th>
         <div class="compare-th">
           <span class="compare-th__provider">${model.provider}</span>
           <span class="compare-th__name">${model.name}</span>
-          <button class="compare-remove-btn" data-remove-compare="${model.id}" title="移除">✕</button>
+          <button class="compare-remove-btn" data-remove-compare="${model.id}" title="${removeTitle}">✕</button>
         </div>
       </th>
     `).join('');
 
     const rowDefs = [
-      { label: "单次 (USD)", key: "singleCostUSD", fmt: fmtUSD },
-      { label: "单次 (CNY)", key: "singleCostCNY", fmt: fmtCNY },
-      { label: "每日 (CNY)", key: "dailyCostCNY",  fmt: fmtCNY },
-      { label: "每月 (CNY)", key: "monthlyCostCNY", fmt: fmtCNY },
+      { label: I18n.t("compare.row.single.usd"),  key: "singleCostUSD",  fmt: fmtUSD },
+      { label: I18n.t("compare.row.single.cny"),  key: "singleCostCNY",  fmt: fmtCNY },
+      { label: I18n.t("compare.row.daily.cny"),   key: "dailyCostCNY",   fmt: fmtCNY },
+      { label: I18n.t("compare.row.monthly.cny"), key: "monthlyCostCNY", fmt: fmtCNY },
     ];
 
     const rows = rowDefs.map(row => {
@@ -351,9 +351,10 @@ const Renderer = (() => {
       return `<tr><td class="compare-row-label">${row.label}</td>${cells}</tr>`;
     }).join('');
 
+    const bestLabel = I18n.t("compare.cell.best");
     const diffCells = batchResults.map(({ result }) => {
       const isBase = result.singleCostCNY === minCNY;
-      if (isBase) return `<td class="compare-td--best">最低 ✅</td>`;
+      if (isBase) return `<td class="compare-td--best">${bestLabel}</td>`;
       const diff = minCNY > 0 ? ((result.singleCostCNY - minCNY) / minCNY * 100).toFixed(1) : "—";
       return `<td class="compare-td--expensive">+${diff}%</td>`;
     }).join('');
@@ -365,7 +366,7 @@ const Renderer = (() => {
           <tbody>
             ${rows}
             <tr class="compare-diff-row">
-              <td class="compare-row-label">相对差异</td>
+              <td class="compare-row-label">${I18n.t("compare.row.diff")}</td>
               ${diffCells}
             </tr>
           </tbody>
@@ -377,33 +378,34 @@ const Renderer = (() => {
   // ── Exchange Badge ──
   function renderExchangeBadge(rate, source, displayDate) {
     const display = document.getElementById("exchangeRateDisplay");
-    const sourceText = source === "api"
-      ? "今日已更新"
-      : source === "cache"
-        ? "今日缓存"
-        : source === "stale"
-          ? "旧缓存"
-          : "默认值";
+    const key = "topbar.rate.source." + (["api","cache","stale","default"].includes(source) ? source : "default");
+    const sourceText = I18n.t(key);
     display.textContent = `1 USD = ${rate.toFixed(4)} CNY · ${sourceText} · ${displayDate}`;
-    display.title = `汇率更新日期：${displayDate}`;
+    display.title = displayDate;
+    lastExchange = { rate, source, displayDate };
   }
 
   // ── Currency List ──
   function renderCurrencyList(allCurrencies) {
     const container = document.getElementById("currencyList");
     const PROTECTED = ["USD", "CNY"];
+    const builtinLabel = I18n.t("modal.currency.builtin");
 
-    container.innerHTML = allCurrencies.map(c => `
-      <div class="currency-row">
-        <span class="currency-row__code">${c.code}</span>
-        <span class="currency-row__name">${c.name}</span>
-        <span class="currency-row__rate">${c.toCny !== null ? `1 ${c.code} = ${c.toCny} CNY` : '自动获取'}</span>
-        ${!PROTECTED.includes(c.code) ? `
-          <button class="icon-btn icon-btn--danger" data-delete-currency="${c.code}">
-            <i data-lucide="trash-2"></i>
-          </button>` : `<span class="currency-row__protected">内置</span>`}
-      </div>
-    `).join('');
+    container.innerHTML = allCurrencies.map(c => {
+      const rateText = c.toCny !== null
+        ? I18n.t("modal.currency.row.rate", { code: c.code, rate: c.toCny })
+        : I18n.t("modal.currency.row.auto");
+      return `
+        <div class="currency-row">
+          <span class="currency-row__code">${c.code}</span>
+          <span class="currency-row__name">${c.name}</span>
+          <span class="currency-row__rate">${rateText}</span>
+          ${!PROTECTED.includes(c.code) ? `
+            <button class="icon-btn icon-btn--danger" data-delete-currency="${c.code}">
+              <i data-lucide="trash-2"></i>
+            </button>` : `<span class="currency-row__protected">${builtinLabel}</span>`}
+        </div>`;
+    }).join('');
     lucide.createIcons();
   }
 
@@ -440,7 +442,7 @@ const Renderer = (() => {
     if (customModels.length === 0) {
       container.innerHTML = `
         <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-          暂无自定义模型，点击侧边栏"添加"按钮创建
+          ${I18n.t("modal.manage.empty")}
         </div>`;
       return;
     }
@@ -487,6 +489,11 @@ const Renderer = (() => {
     }, duration);
   }
 
+  // Replay the last exchange badge render with the current language (used by I18n.onChange).
+  function refreshExchangeBadge() {
+    if (lastExchange) renderExchangeBadge(lastExchange.rate, lastExchange.source, lastExchange.displayDate);
+  }
+
   return {
     renderModelList,
     renderModelBanner,
@@ -494,6 +501,7 @@ const Renderer = (() => {
     renderResults,
     renderCompareTable,
     renderExchangeBadge,
+    refreshExchangeBadge,
     renderCurrencyList,
     renderComparePickerList,
     renderManageModelsList,

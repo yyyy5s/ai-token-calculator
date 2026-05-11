@@ -5,13 +5,27 @@
 //
 //  维护说明：
 //    - currency: "USD" | "CNY" | 其他（需在 BUILTIN_CURRENCIES 中定义）
-//    - type: "standard" | "tiered_input" | "tiered_output" | "tiered_both"
+//    - pricing.type 枚举（仅三种，覆盖市面绝大多数模型计费方式）：
+//
+//        ┌───────────────────┬──────────────────────────────────────────────────┐
+//        │ type              │ 含义                                              │
+//        ├───────────────────┼──────────────────────────────────────────────────┤
+//        │ standard          │ 平价：固定 input / output / cacheHit              │
+//        │                   │ 适用：GPT-4o、Claude、DeepSeek V3/R1、Qwen、       │
+//        │                   │       ERNIE、GLM、Moonshot、Gemini 2.0 等         │
+//        │ tiered_by_input   │ 由【单次输入 Token 总量】决定档位；               │
+//        │                   │ 每档同时给出 input / output / cacheHit            │
+//        │                   │ 适用：Gemini 2.5 系列、Doubao 1.5 Pro             │
+//        │ tiered_by_output  │ 由【单次输出 Token 总量】决定档位（同上结构）    │
+//        │                   │ 适用：备用对称类型，便于自定义模型扩展            │
+//        └───────────────────┴──────────────────────────────────────────────────┘
+//
 //    - 所有价格单位：该币种 / 百万 tokens (per 1M tokens)
 //    - cacheHit 为 null 表示该模型不支持缓存
-//    - tiered_output 的 outputTiers 按 maxOutputTokens 升序，最后一档设为 Infinity
-//    - tiered_input 的 inputTiers 按 maxInputTokens 升序，每档可含独立 cacheHit
-//    - tiered_both 同时含 inputTiers 和 outputTiers
-//    - 注意：maxInputTokens / maxOutputTokens 等阈值的单位是【个 Token】全额，不是 K 或 M！例如 128K 应写为 128000。
+//    - tiered_by_input  的 tiers 按 maxInputTokens  升序，最后一档设为 Infinity
+//    - tiered_by_output 的 tiers 按 maxOutputTokens 升序，最后一档设为 Infinity
+//    - 注意：maxInputTokens / maxOutputTokens 的单位是【个 Token】全额，不是 K 或 M！
+//            例如 200K 应写为 200000。
 // ═══════════════════════════════════════════════════════════════
 
 window.BUILTIN_CURRENCIES = [
@@ -134,7 +148,6 @@ window.BUILTIN_MODELS = [
       input: 3.00,
       output: 15.00,
       cacheHit: 0.30,
-      cacheWrite: 3.75,
     }
   },
   {
@@ -147,7 +160,6 @@ window.BUILTIN_MODELS = [
       input: 3.00,
       output: 15.00,
       cacheHit: 0.30,
-      cacheWrite: 3.75,
     }
   },
   {
@@ -160,7 +172,6 @@ window.BUILTIN_MODELS = [
       input: 3.00,
       output: 15.00,
       cacheHit: 0.30,
-      cacheWrite: 3.75,
     }
   },
   {
@@ -173,25 +184,25 @@ window.BUILTIN_MODELS = [
       input: 0.80,
       output: 4.00,
       cacheHit: 0.08,
-      cacheWrite: 1.00,
     }
   },
 
   // ╔══════════════════════════════╗
   // ║          Google              ║
   // ╚══════════════════════════════╝
+  // Google Gemini 2.5 系列采用「Prompt Length」阶梯：
+  //   输入 Token 数量决定档位，且 input / output / cacheHit 三个单价
+  //   全部跟随档位变化（>200K 时三者一起上调）。
   {
     id: "gemini-2-5-pro",
     name: "Gemini 2.5 Pro",
     provider: "Google",
     currency: "USD",
     pricing: {
-      type: "tiered_output",
-      input: 1.25,
-      cacheHit: 0.31,
-      outputTiers: [
-        { maxOutputTokens: 200000,   price: 5.00  },
-        { maxOutputTokens: Infinity, price: 10.00 },
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 200000,   input: 1.25, output: 10.00, cacheHit: 0.31  },
+        { maxInputTokens: Infinity, input: 2.50, output: 15.00, cacheHit: 0.625 },
       ]
     }
   },
@@ -201,12 +212,10 @@ window.BUILTIN_MODELS = [
     provider: "Google",
     currency: "USD",
     pricing: {
-      type: "tiered_output",
-      input: 0.15,
-      cacheHit: 0.0375,
-      outputTiers: [
-        { maxOutputTokens: 200000,   price: 0.60 },
-        { maxOutputTokens: Infinity, price: 3.50 },
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 200000,   input: 0.15, output: 0.60, cacheHit: 0.0375 },
+        { maxInputTokens: Infinity, input: 0.30, output: 3.50, cacheHit: 0.075  },
       ]
     }
   },
@@ -318,18 +327,17 @@ window.BUILTIN_MODELS = [
       cacheHit: null,
     }
   },
+  // 豆包 1.5 Pro 按上下文（即 input）长度分档，输入与输出单价随档位同时变化。
   {
     id: "doubao-1-5-pro",
     name: "豆包 1.5 Pro",
     provider: "字节跳动",
     currency: "CNY",
     pricing: {
-      type: "tiered_output",
-      input: 0.80,
-      cacheHit: null,
-      outputTiers: [
-        { maxOutputTokens: 200000,   price: 2.00 },
-        { maxOutputTokens: Infinity, price: 8.00 },
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 32000,    input: 0.80, output: 2.00, cacheHit: null },
+        { maxInputTokens: Infinity, input: 5.00, output: 9.00, cacheHit: null },
       ]
     }
   },
