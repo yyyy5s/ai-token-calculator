@@ -9,7 +9,7 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
 
-  <title>TokenLens — AI 费率计算器</title>
+  <title>TokenLens</title>
 
   <link rel="stylesheet" href="./src/styles.css" />
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -23,25 +23,37 @@
         <i data-lucide="coins"></i>
       </div>
       <span class="topbar__name">TokenLens</span>
-      <span class="topbar__tagline">AI 费率计算器</span>
+      <span class="topbar__tagline" data-i18n="app.tagline">AI 费率计算器</span>
     </div>
 
     <div class="topbar__actions">
       <div class="exchange-badge" id="exchangeBadge">
         <i data-lucide="globe"></i>
-        <span id="exchangeRateDisplay">汇率加载中...</span>
+        <span id="exchangeRateDisplay" data-i18n="topbar.rate.loading">汇率加载中...</span>
       </div>
 
-      <button class="btn btn--ghost btn--sm" id="manageCurrencyBtn" title="币种管理">
+      <button class="btn btn--ghost btn--sm" id="manageCurrencyBtn" data-i18n-title="topbar.btn.currency" title="币种管理">
         <i data-lucide="circle-dollar-sign"></i>
       </button>
 
-      <button class="btn btn--ghost btn--sm" id="installPwaBtn" style="display:none;">
-        <i data-lucide="download"></i>
-        <span class="pwa-text">安装</span>
+      <button class="btn btn--ghost btn--sm" id="helpBtn" data-i18n-title="topbar.btn.help" title="使用帮助">
+        <i data-lucide="help-circle"></i>
       </button>
 
-      <button class="icon-btn icon-btn--theme" id="themeToggleBtn" title="切换主题">
+      <div class="lang-switcher" id="langSwitcher">
+        <button class="btn btn--ghost btn--sm lang-switcher__btn" id="langSwitcherBtn" data-i18n-title="topbar.btn.lang" title="切换语言">
+          <i data-lucide="languages"></i>
+          <span class="lang-switcher__label" id="langSwitcherLabel">中</span>
+        </button>
+        <div class="lang-menu" id="langMenu" style="display:none;"></div>
+      </div>
+
+      <button class="btn btn--ghost btn--sm" id="installPwaBtn" style="display:none;">
+        <i data-lucide="download"></i>
+        <span class="pwa-text" data-i18n="topbar.btn.install">安装</span>
+      </button>
+
+      <button class="icon-btn icon-btn--theme" id="themeToggleBtn" data-i18n-title="topbar.btn.theme" title="切换主题">
         <i data-lucide="sun" class="theme-icon--light"></i>
         <i data-lucide="moon" class="theme-icon--dark"></i>
       </button>
@@ -56,26 +68,26 @@
       <div class="sidebar__header">
         <h2 class="sidebar__title">
           <i data-lucide="layers"></i>
-          模型库
+          <span data-i18n="sidebar.title">模型库</span>
         </h2>
         <div style="display:flex; gap:4px;">
           <input type="file" id="importFileInput" accept=".json" style="display:none" />
-          <button class="icon-btn" id="importBtn" title="导入配置">
+          <button class="icon-btn" id="importBtn" data-i18n-title="sidebar.btn.import" title="导入配置">
             <i data-lucide="download"></i>
           </button>
-          <button class="icon-btn" id="exportBtn" title="导出配置">
+          <button class="icon-btn" id="exportBtn" data-i18n-title="sidebar.btn.export" title="导出配置">
             <i data-lucide="upload"></i>
           </button>
           <button class="btn btn--primary btn--sm" id="addModelBtn">
             <i data-lucide="plus"></i>
-            添加
+            <span data-i18n="sidebar.btn.add">添加</span>
           </button>
         </div>
       </div>
 
       <div class="sidebar__search">
         <i data-lucide="search"></i>
-        <input type="text" id="modelSearchInput" placeholder="搜索模型..." autocomplete="off" />
+        <input type="text" id="modelSearchInput" data-i18n-placeholder="sidebar.search.placeholder" placeholder="搜索模型..." autocomplete="off" />
       </div>
 
       <div class="sidebar__list" id="modelList"></div>
@@ -83,7 +95,7 @@
       <div class="sidebar__footer">
         <button class="btn btn--ghost btn--sm btn--full" id="manageModelsBtn">
           <i data-lucide="settings"></i>
-          管理自定义模型
+          <span data-i18n="sidebar.btn.manage">管理自定义模型</span>
         </button>
       </div>
     </aside>
@@ -97,16 +109,16 @@
       <!-- Model Banner -->
       <div class="model-banner" id="modelBanner">
         <div class="model-banner__info">
-          <span class="model-banner__provider" id="bannerProvider">请从左侧选择模型</span>
-          <span class="model-banner__name" id="bannerName">—</span>
+          <span class="model-banner__provider" id="bannerProvider" data-i18n="banner.pickAModel">请从左侧选择模型</span>
+          <span class="model-banner__name" id="bannerName" data-i18n="banner.dash">—</span>
           <span class="model-banner__badge" id="bannerCurrency"></span>
           <span class="model-banner__badge model-banner__badge--tier" id="bannerTierBadge" style="display:none;">
-            <i data-lucide="layers"></i> 阶梯定价
+            <i data-lucide="layers"></i> <span data-i18n="banner.badge.tier">阶梯定价</span>
           </span>
         </div>
         <div class="model-banner__actions">
-          <button class="btn btn--ghost btn--sm" id="bannerCompareBtn" title="加入对比" style="display:none;">
-            <i data-lucide="git-compare"></i> 加入对比
+          <button class="btn btn--ghost btn--sm" id="bannerCompareBtn" data-i18n-title="banner.btn.compare" title="加入对比" style="display:none;">
+            <i data-lucide="git-compare"></i> <span data-i18n="banner.btn.compare">加入对比</span>
           </button>
         </div>
       </div>
@@ -115,7 +127,7 @@
       <div class="tier-card" id="tierCard" style="display:none;">
         <div class="tier-card__header">
           <i data-lucide="layers"></i>
-          <span>阶梯定价规则</span>
+          <span data-i18n="tier.title">阶梯定价规则</span>
         </div>
         <div class="tier-card__rows" id="tierCardRows"></div>
       </div>
@@ -125,16 +137,16 @@
         <div class="params-card__header">
           <h3 class="card__title" style="margin-bottom:0;">
             <i data-lucide="sliders-horizontal"></i>
-            输入参数
+            <span data-i18n="params.title">输入参数</span>
           </h3>
           <div class="mode-switch" id="modeSwitch">
             <button class="mode-switch__btn mode-switch__btn--active" data-mode="single">
               <i data-lucide="zap"></i>
-              单次算总量
+              <span data-i18n="params.mode.single">单次算总量</span>
             </button>
             <button class="mode-switch__btn" data-mode="total">
               <i data-lucide="bar-chart-2"></i>
-              总量算单次
+              <span data-i18n="params.mode.total">总量算单次</span>
             </button>
           </div>
         </div>
@@ -143,22 +155,22 @@
         <div class="params-grid" id="singleModeFields">
           <div class="param-item">
             <label class="param-label" for="inputTokens">
-              单次输入 Token
-              <span class="param-hint">含上下文，请填全额(如30000)</span>
+              <span data-i18n="params.single.input.label">单次输入 Token</span>
+              <span class="param-hint" data-i18n="params.single.input.hint">含上下文，请填全额(如30000)</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="inputTokens" class="param-input" value="30000" min="0" step="100" />
-              <span class="param-unit">tokens</span>
+              <span class="param-unit" data-i18n="params.unit.tokens">tokens</span>
             </div>
           </div>
           <div class="param-item">
             <label class="param-label" for="outputTokens">
-              单次输出 Token
-              <span class="param-hint">请填全额(如1200)</span>
+              <span data-i18n="params.single.output.label">单次输出 Token</span>
+              <span class="param-hint" data-i18n="params.single.output.hint">请填全额(如1200)</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="outputTokens" class="param-input" value="1200" min="0" step="100" />
-              <span class="param-unit">tokens</span>
+              <span class="param-unit" data-i18n="params.unit.tokens">tokens</span>
             </div>
           </div>
         </div>
@@ -167,57 +179,57 @@
         <div class="params-grid" id="totalModeFields" style="display:none;">
           <div class="param-item">
             <label class="param-label" for="totalCachedTokens">
-              总输入命中 Token
-              <span class="param-hint">请填全额</span>
+              <span data-i18n="params.total.cached.label">总输入命中 Token</span>
+              <span class="param-hint" data-i18n="params.total.cached.hint">请填全额</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="totalCachedTokens" class="param-input" value="0" min="0" step="100" />
-              <span class="param-unit">tokens</span>
+              <span class="param-unit" data-i18n="params.unit.tokens">tokens</span>
             </div>
           </div>
           <div class="param-item">
             <label class="param-label" for="totalUncachedTokens">
-              总输入未命中 Token
-              <span class="param-hint">请填全额</span>
+              <span data-i18n="params.total.uncached.label">总输入未命中 Token</span>
+              <span class="param-hint" data-i18n="params.total.uncached.hint">请填全额</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="totalUncachedTokens" class="param-input" value="0" min="0" step="100" />
-              <span class="param-unit">tokens</span>
+              <span class="param-unit" data-i18n="params.unit.tokens">tokens</span>
             </div>
           </div>
           <div class="param-item">
             <label class="param-label" for="totalOutputTokens">
-              总输出 Token
-              <span class="param-hint">请填全额</span>
+              <span data-i18n="params.total.output.label">总输出 Token</span>
+              <span class="param-hint" data-i18n="params.total.output.hint">请填全额</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="totalOutputTokens" class="param-input" value="0" min="0" step="100" />
-              <span class="param-unit">tokens</span>
+              <span class="param-unit" data-i18n="params.unit.tokens">tokens</span>
             </div>
           </div>
           <div class="param-item">
             <label class="param-label" for="totalCalls">
-              调用次数
-              <span class="param-hint">用于算出单次均值</span>
+              <span data-i18n="params.total.calls.label">调用次数</span>
+              <span class="param-hint" data-i18n="params.total.calls.hint">用于算出单次均值</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="totalCalls" class="param-input" value="1" min="1" step="1" />
-              <span class="param-unit">次</span>
+              <span class="param-unit" data-i18n="params.unit.times">次</span>
             </div>
           </div>
           <!-- 计算结果展示 -->
           <div class="param-item param-item--computed" id="totalModeComputed" style="grid-column: 1 / -1;">
             <div class="computed-summary">
               <div class="computed-summary__item">
-                <span class="computed-summary__label">单次输入</span>
+                <span class="computed-summary__label" data-i18n="params.computed.input">单次输入</span>
                 <span class="computed-summary__value" id="computedInputPerCall">—</span>
               </div>
               <div class="computed-summary__item">
-                <span class="computed-summary__label">单次输出</span>
+                <span class="computed-summary__label" data-i18n="params.computed.output">单次输出</span>
                 <span class="computed-summary__value" id="computedOutputPerCall">—</span>
               </div>
               <div class="computed-summary__item">
-                <span class="computed-summary__label">缓存命中率</span>
+                <span class="computed-summary__label" data-i18n="params.computed.cache">缓存命中率</span>
                 <span class="computed-summary__value" id="computedCacheRate">—</span>
               </div>
             </div>
@@ -228,9 +240,9 @@
         <div class="params-grid params-grid--common" id="commonFields">
           <div class="param-item" id="cacheHitRateItem">
             <label class="param-label" for="cacheHitRate">
-              缓存命中率
-              <span class="param-hint">0% = 不使用缓存</span>
-              <button class="cache-calc-toggle" id="cacheCalcToggle" type="button" title="从命中/未命中 Token 计算">
+              <span data-i18n="params.cache.label">缓存命中率</span>
+              <span class="param-hint" data-i18n="params.cache.hint">0% = 不使用缓存</span>
+              <button class="cache-calc-toggle" id="cacheCalcToggle" type="button" data-i18n-title="params.cache.calc.title" title="从命中/未命中 Token 计算">
                 <i data-lucide="calculator"></i>
               </button>
             </label>
@@ -241,32 +253,32 @@
             <!-- 缓存计算器展开区 -->
             <div class="cache-calc" id="cacheCalcPanel" style="display:none;">
               <div class="cache-calc__row">
-                <label class="cache-calc__label">命中 Token</label>
+                <label class="cache-calc__label" data-i18n="params.cache.calc.hit">命中 Token</label>
                 <input type="number" id="calcCacheHit" class="cache-calc__input" placeholder="566528" min="0" />
               </div>
               <div class="cache-calc__row">
-                <label class="cache-calc__label">未命中 Token</label>
+                <label class="cache-calc__label" data-i18n="params.cache.calc.miss">未命中 Token</label>
                 <input type="number" id="calcCacheMiss" class="cache-calc__input" placeholder="382331" min="0" />
               </div>
               <div class="cache-calc__result">
-                <span>→ 命中率：<strong id="calcCacheResult">—</strong></span>
-                <button class="btn btn--primary btn--sm" id="applyCacheRateBtn" type="button">应用</button>
+                <span><span data-i18n="params.cache.calc.result">→ 命中率：</span><strong id="calcCacheResult">—</strong></span>
+                <button class="btn btn--primary btn--sm" id="applyCacheRateBtn" type="button" data-i18n="params.cache.calc.apply">应用</button>
               </div>
             </div>
           </div>
           <div class="param-item">
             <label class="param-label" for="dailyCalls">
-              每日调用次数
+              <span data-i18n="params.daily.label">每日调用次数</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="dailyCalls" class="param-input" value="100" min="0" step="10" />
-              <span class="param-unit">次/天</span>
+              <span class="param-unit" data-i18n="params.daily.unit">次/天</span>
             </div>
           </div>
           <div class="param-item">
             <label class="param-label" for="usdToCny">
-              汇率 (1 USD = ? CNY)
-              <span class="param-hint" id="rateSourceHint">自动获取</span>
+              <span data-i18n="params.rate.label">汇率 (1 USD = ? CNY)</span>
+              <span class="param-hint" id="rateSourceHint" data-i18n="params.rate.hint">自动获取</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="usdToCny" class="param-input" value="7.25" min="0.01" step="0.01" />
@@ -280,20 +292,20 @@
       <section class="card results-card" id="resultsCard">
         <h3 class="card__title">
           <i data-lucide="bar-chart-2"></i>
-          计算结果
+          <span data-i18n="results.title">计算结果</span>
         </h3>
         <div class="results-table-wrap">
           <table class="results-table" id="resultsTable">
             <thead>
               <tr>
-                <th>维度</th>
-                <th>💲 美元 (USD)</th>
-                <th>¥ 人民币 (CNY)</th>
+                <th data-i18n="results.col.dim">维度</th>
+                <th data-i18n="results.col.usd">💲 美元 (USD)</th>
+                <th data-i18n="results.col.cny">¥ 人民币 (CNY)</th>
               </tr>
             </thead>
             <tbody id="resultsTableBody">
               <tr class="results-empty">
-                <td colspan="3">← 请先从左侧选择一个模型</td>
+                <td colspan="3" data-i18n="results.empty">← 请先从左侧选择一个模型</td>
               </tr>
             </tbody>
           </table>
@@ -311,7 +323,7 @@
         <div class="card__title card__title--collapsible" id="compareToggle">
           <div style="display:flex;align-items:center;gap:8px;">
             <i data-lucide="git-compare"></i>
-            模型横向对比
+            <span data-i18n="compare.title">模型横向对比</span>
           </div>
           <button class="icon-btn" id="compareCollapseBtn">
             <i data-lucide="chevron-down"></i>
@@ -319,16 +331,16 @@
         </div>
         <div class="compare-content" id="compareContent">
           <div class="compare-toolbar">
-            <span class="compare-hint">同等参数下各模型成本对比（最多 5 个）</span>
+            <span class="compare-hint" data-i18n="compare.hint">同等参数下各模型成本对比（最多 5 个）</span>
             <button class="btn btn--ghost btn--sm" id="addCompareBtn">
               <i data-lucide="plus"></i>
-              添加对比
+              <span data-i18n="compare.btn.add">添加对比</span>
             </button>
           </div>
           <div class="compare-table-wrap" id="compareTableWrap">
             <div class="compare-empty">
               <i data-lucide="git-compare"></i>
-              <span>右键模型 → "加入对比"，或点击上方按钮</span>
+              <span data-i18n="compare.empty">右键模型 → "加入对比"，或点击上方按钮</span>
             </div>
           </div>
         </div>
@@ -346,49 +358,49 @@
   <div class="modal-overlay" id="modelModalOverlay" style="display:none;">
     <div class="modal" id="modelModal">
       <div class="modal__header">
-        <h3 class="modal__title" id="modalTitle">添加自定义模型</h3>
+        <h3 class="modal__title" id="modalTitle" data-i18n="modal.model.add">添加自定义模型</h3>
         <button class="icon-btn" id="modalCloseBtn"><i data-lucide="x"></i></button>
       </div>
       <form class="modal__form" id="modelForm" novalidate>
         <div class="form-row">
           <div class="form-item">
-            <label for="fm-name">模型名称 *</label>
-            <input type="text" id="fm-name" placeholder="如：My-GPT-4" required />
+            <label for="fm-name" data-i18n="modal.model.name.label">模型名称 *</label>
+            <input type="text" id="fm-name" data-i18n-placeholder="modal.model.name.placeholder" placeholder="如：My-GPT-4" required />
           </div>
           <div class="form-item">
-            <label for="fm-provider">提供商 *</label>
-            <input type="text" id="fm-provider" placeholder="如：OpenAI" required />
+            <label for="fm-provider" data-i18n="modal.model.provider.label">提供商 *</label>
+            <input type="text" id="fm-provider" data-i18n-placeholder="modal.model.provider.placeholder" placeholder="如：OpenAI" required />
           </div>
         </div>
         <div class="form-row">
           <div class="form-item">
-            <label for="fm-currency">计费货币 *</label>
+            <label for="fm-currency" data-i18n="modal.model.currency.label">计费货币 *</label>
             <select id="fm-currency"></select>
           </div>
           <div class="form-item">
-            <label for="fm-type">定价类型 *</label>
+            <label for="fm-type" data-i18n="modal.model.type.label">定价类型 *</label>
             <select id="fm-type">
-              <option value="standard">标准定价（固定单价）</option>
-              <option value="tiered_by_input">按输入长度分档（input / output / cache 三价一起跟随档位）</option>
-              <option value="tiered_by_output">按输出长度分档（input / output / cache 三价一起跟随档位）</option>
+              <option value="standard"         data-i18n="modal.model.type.standard">标准定价（固定单价）</option>
+              <option value="tiered_by_input"  data-i18n="modal.model.type.byInput">按输入长度分档（input / output / cache 三价一起跟随档位）</option>
+              <option value="tiered_by_output" data-i18n="modal.model.type.byOutput">按输出长度分档（input / output / cache 三价一起跟随档位）</option>
             </select>
           </div>
         </div>
 
         <!-- Standard pricing -->
         <div class="form-section" id="fm-standard-section">
-          <h4 class="form-section__title">价格配置（/ 百万 tokens）</h4>
+          <h4 class="form-section__title" data-i18n="modal.model.standard.title">价格配置（/ 百万 tokens）</h4>
           <div class="form-row form-row--3">
             <div class="form-item">
-              <label for="fm-input">输入成本</label>
+              <label for="fm-input" data-i18n="modal.model.field.input">输入成本</label>
               <input type="number" id="fm-input" placeholder="0.00" min="0" step="0.001" />
             </div>
             <div class="form-item">
-              <label for="fm-cacheHit">缓存命中</label>
+              <label for="fm-cacheHit" data-i18n="modal.model.field.cache">缓存命中</label>
               <input type="number" id="fm-cacheHit" placeholder="0.00" min="0" step="0.001" />
             </div>
             <div class="form-item">
-              <label for="fm-output">输出成本</label>
+              <label for="fm-output" data-i18n="modal.model.field.output">输出成本</label>
               <input type="number" id="fm-output" placeholder="0.00" min="0" step="0.001" />
             </div>
           </div>
@@ -396,36 +408,36 @@
 
         <!-- Tiered-by-input (Gemini-style): input length determines all prices -->
         <div class="form-section" id="fm-tier-by-input-section" style="display:none;">
-          <h4 class="form-section__title">按【输入 Token 数】分档（/ 百万 tokens）</h4>
-          <p class="form-hint">
+          <h4 class="form-section__title" data-i18n="modal.model.byInput.title">按【输入 Token 数】分档（/ 百万 tokens）</h4>
+          <p class="form-hint" data-i18n-html="modal.model.byInput.hint">
             档位由<strong>单次输入 Token 总量</strong>决定，每档同时给出输入/输出/缓存三个单价。
             上限值请填全额（如 200000 表示 200K）；最后一个档位留空则自动视为无上限 ∞。
           </p>
           <div id="fm-tier-by-input-rows"></div>
           <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-by-input-rows" data-tier-type="by-input" style="margin-top:8px;">
             <i data-lucide="plus"></i>
-            添加输入档位
+            <span data-i18n="modal.model.byInput.addRow">添加输入档位</span>
           </button>
         </div>
 
         <!-- Tiered-by-output: output length determines all prices -->
         <div class="form-section" id="fm-tier-by-output-section" style="display:none;">
-          <h4 class="form-section__title">按【输出 Token 数】分档（/ 百万 tokens）</h4>
-          <p class="form-hint">
+          <h4 class="form-section__title" data-i18n="modal.model.byOutput.title">按【输出 Token 数】分档（/ 百万 tokens）</h4>
+          <p class="form-hint" data-i18n-html="modal.model.byOutput.hint">
             档位由<strong>单次输出 Token 总量</strong>决定，每档同时给出输入/输出/缓存三个单价。
             上限值请填全额；最后一个档位留空则自动视为无上限 ∞。
           </p>
           <div id="fm-tier-by-output-rows"></div>
           <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-by-output-rows" data-tier-type="by-output" style="margin-top:8px;">
             <i data-lucide="plus"></i>
-            添加输出档位
+            <span data-i18n="modal.model.byOutput.addRow">添加输出档位</span>
           </button>
         </div>
 
         <div class="modal__footer">
-          <button type="button" class="btn btn--ghost" id="cancelModalBtn">取消</button>
+          <button type="button" class="btn btn--ghost" id="cancelModalBtn" data-i18n="modal.model.cancel">取消</button>
           <button type="submit" class="btn btn--primary" id="saveModelBtn">
-            <i data-lucide="check"></i> 保存模型
+            <i data-lucide="check"></i> <span data-i18n="modal.model.save">保存模型</span>
           </button>
         </div>
       </form>
@@ -436,17 +448,17 @@
   <div class="modal-overlay" id="currencyModalOverlay" style="display:none;">
     <div class="modal modal--sm" id="currencyModal">
       <div class="modal__header">
-        <h3 class="modal__title">币种管理</h3>
+        <h3 class="modal__title" data-i18n="modal.currency.title">币种管理</h3>
         <button class="icon-btn" id="currencyModalCloseBtn"><i data-lucide="x"></i></button>
       </div>
       <div class="modal__body">
         <div id="currencyList"></div>
         <div class="add-currency-form">
-          <input type="text" id="newCurrencyCode" placeholder="代码 如 JPY" maxlength="5" />
-          <input type="text" id="newCurrencyName" placeholder="名称 如 日元" maxlength="10" />
-          <input type="number" id="newCurrencyRate" placeholder="对CNY汇率" min="0" step="0.0001" />
+          <input type="text"   id="newCurrencyCode" data-i18n-placeholder="modal.currency.code.placeholder" placeholder="代码 如 JPY" maxlength="5" />
+          <input type="text"   id="newCurrencyName" data-i18n-placeholder="modal.currency.name.placeholder" placeholder="名称 如 日元" maxlength="10" />
+          <input type="number" id="newCurrencyRate" data-i18n-placeholder="modal.currency.rate.placeholder" placeholder="对CNY汇率" min="0" step="0.0001" />
           <button class="btn btn--primary btn--sm" id="addCurrencyBtn">
-            <i data-lucide="plus"></i>添加
+            <i data-lucide="plus"></i><span data-i18n="modal.currency.btn.add">添加</span>
           </button>
         </div>
       </div>
@@ -457,19 +469,19 @@
   <div class="modal-overlay" id="comparePickerOverlay" style="display:none;">
     <div class="modal" id="comparePickerModal">
       <div class="modal__header">
-        <h3 class="modal__title">选择对比模型（最多5个）</h3>
+        <h3 class="modal__title" data-i18n="modal.compare.title">选择对比模型（最多5个）</h3>
         <button class="icon-btn" id="comparePickerCloseBtn"><i data-lucide="x"></i></button>
       </div>
       <div class="modal__body">
         <div class="sidebar__search" style="padding:0 0 12px;">
           <i data-lucide="search"></i>
-          <input type="text" id="compareSearchInput" placeholder="搜索模型..." autocomplete="off" />
+          <input type="text" id="compareSearchInput" data-i18n-placeholder="modal.compare.search.placeholder" placeholder="搜索模型..." autocomplete="off" />
         </div>
         <div class="picker-list" id="comparePickerList"></div>
         <div class="modal__footer" style="margin-top:12px;">
-          <button class="btn btn--ghost" id="clearCompareBtn">清空对比</button>
+          <button class="btn btn--ghost"   id="clearCompareBtn"   data-i18n="modal.compare.clear">清空对比</button>
           <button class="btn btn--primary" id="confirmCompareBtn">
-            <i data-lucide="check"></i> 确定
+            <i data-lucide="check"></i> <span data-i18n="modal.compare.confirm">确定</span>
           </button>
         </div>
       </div>
@@ -480,13 +492,49 @@
   <div class="modal-overlay" id="manageModalOverlay" style="display:none;">
     <div class="modal" id="manageModal">
       <div class="modal__header">
-        <h3 class="modal__title">管理自定义模型</h3>
+        <h3 class="modal__title" data-i18n="modal.manage.title">管理自定义模型</h3>
         <button class="icon-btn" id="manageModalCloseBtn"><i data-lucide="x"></i></button>
       </div>
       <div class="modal__body" id="manageModalBody">
-        <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
-          暂无自定义模型
+        <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;" data-i18n="modal.manage.empty">
+          暂无自定义模型，点击侧边栏"添加"按钮创建
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ MODAL: Help ══════ -->
+  <div class="modal-overlay" id="helpModalOverlay" style="display:none;">
+    <div class="modal modal--lg" id="helpModal">
+      <div class="modal__header">
+        <h3 class="modal__title" data-i18n="modal.help.title">使用帮助</h3>
+        <button class="icon-btn" id="helpModalCloseBtn"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal__body help-body">
+        <section class="help-section">
+          <h4 data-i18n="modal.help.section.basic">基本使用方法</h4>
+          <div data-i18n-html="modal.help.basic.body"></div>
+        </section>
+        <section class="help-section">
+          <h4 data-i18n="modal.help.section.modes">两种输入模式</h4>
+          <div data-i18n-html="modal.help.modes.body"></div>
+        </section>
+        <section class="help-section">
+          <h4 data-i18n="modal.help.section.tiers">三种定价类型</h4>
+          <div data-i18n-html="modal.help.tiers.body"></div>
+        </section>
+        <section class="help-section">
+          <h4 data-i18n="modal.help.section.addCustom">添加/编辑自定义模型</h4>
+          <div data-i18n-html="modal.help.addCustom.body"></div>
+        </section>
+        <section class="help-section">
+          <h4 data-i18n="modal.help.section.extra">未直接支持的计费方案</h4>
+          <div data-i18n-html="modal.help.extra.body"></div>
+        </section>
+        <section class="help-section">
+          <h4 data-i18n="modal.help.section.lang">多语言</h4>
+          <div data-i18n-html="modal.help.lang.body"></div>
+        </section>
       </div>
     </div>
   </div>
@@ -496,8 +544,10 @@
 
   <!-- Scripts (order matters) -->
   <script src="./data/models.js"></script>
+  <script src="./data/i18n.js"></script>
   <script src="./src/calculator.js"></script>
   <script src="./src/storage.js"></script>
+  <script src="./src/i18n.js"></script>
   <script src="./src/rate-cache.js"></script>
   <script src="./src/exchange.js"></script>
   <script src="./src/renderer.js"></script>
