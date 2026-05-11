@@ -1,6 +1,6 @@
 // data/i18n.js
 // ═══════════════════════════════════════════════════════════════
-//  TokenLens 多语言翻译表
+//  ModelCost 多语言翻译表
 //
 //  添加新语言：
 //    1) 在 BUILTIN_LANGUAGES 末尾追加一条 { code, name, short }
@@ -182,18 +182,18 @@ window.BUILTIN_TRANSLATIONS = {
 
     // 使用帮助弹窗
     "modal.help.title":              "使用帮助",
-    "modal.help.section.basic":      "基本使用方法",
-    "modal.help.basic.body":         '<ol><li>左侧「模型库」选一个内置模型，或点 ＋ 添加 创建自定义模型。</li><li>在「输入参数」按使用情况填 Token 数（全额值，不是 K 或 M），设置缓存命中率与每日调用次数。</li><li>「计算结果」自动给出单次/每日/每月的 USD 与 CNY 估算；下方饼图展示输入/输出占比。</li><li>右键任一模型 → 加入对比，可同时比较最多 5 个模型。</li></ol>',
-    "modal.help.section.modes":      "两种输入模式",
-    "modal.help.modes.body":         "<ul><li><strong>单次算总量</strong>：填一次调用的输入/输出 Token，计算单次成本，再乘日调用次数。</li><li><strong>总量算单次</strong>：填一段时间累计的命中/未命中/输出 Token 与调用次数，自动算出单次均值与命中率。适合从日志反推。</li></ul>",
-    "modal.help.section.tiers":      "三种定价类型",
-    "modal.help.tiers.body":         "<dl><dt><code>standard</code></dt><dd>固定 input / output / cacheHit 单价。GPT、Claude、DeepSeek 等绝大多数模型。</dd><dt><code>tiered_by_input</code></dt><dd>由单次<strong>输入 Token 总量</strong>决定档位，每档同时给出 input / output / cache 三价。例如 Gemini 2.5 Pro ≤200K 时 $1.25/$10/$0.31，>200K 时 $2.50/$15/$0.625（输出价也会一起涨）。</dd><dt><code>tiered_by_output</code></dt><dd>由单次<strong>输出 Token 总量</strong>决定档位，结构同上，对称备用。</dd></dl>",
-    "modal.help.section.addCustom":  "添加/编辑自定义模型",
-    "modal.help.addCustom.body":     '<p>侧边栏 ＋ 添加 打开表单，所有价格都按「币种 / 百万 tokens」。</p><ul><li><strong>standard</strong>：填三个固定单价。</li><li><strong>tiered_by_input</strong>：每行档位填「输入阈值 + input/output/cacheHit 三价」。阈值是单次输入 Token 全额值（200K 写 200000）。最后一档阈值留空 = ∞。</li><li><strong>tiered_by_output</strong>：同上，但阈值代表<strong>输出</strong> Token 数。</li></ul><p>提示：导入/导出 JSON 时 <code>Infinity</code> 会被序列化为 <code>null</code>，加载时自动还原，无需手动处理。</p>',
-    "modal.help.section.extra":      "未直接支持的计费方案",
-    "modal.help.extra.body":         '<p>下列方案目前没有专门字段，但通常可以用现有类型组合表达：</p><ul><li><strong>多模态分价</strong>（音频 token 单价 ≠ 文本）：拆成两个独立模型条目分别记录。</li><li><strong>Batch API 50% 折扣</strong>：复制一份模型条目，把 input/output 单价乘 0.5，命名加 "-batch"。</li><li><strong>错峰/夜间折扣</strong>（如 DeepSeek 夜间半价）：同上，建立 "-night" 副本。</li><li><strong>推理 token</strong>（o-系列 / DeepSeek R1）：直接把 reasoning tokens 算进 output 即可，所有厂商都按 output 计费。</li><li><strong>Anthropic cacheWrite</strong>：当前只模拟「缓存命中率」，cacheWrite 一次性写入费用未单独建模——如需精算，可手动上调首次调用的 input 价。</li></ul>',
-    "modal.help.section.lang":       "多语言",
-    "modal.help.lang.body":          '<p>顶栏「语言」按钮可切换界面语言。点击即可在支持语言之间切换。</p>',
+    "modal.help.section.basic":      "3 步算出 AI 调用成本",
+    "modal.help.basic.body":         '<div class="help-hero"><p><strong>ModelCost 的用途：</strong>帮你快速估算某个 AI 模型在一次调用、一天、一个月大概会花多少钱。</p><ol><li><strong>选模型：</strong>在左侧模型库选择一个模型，或点击「添加」录入自己的模型价格。</li><li><strong>填用量：</strong>填写输入 Token、输出 Token、缓存命中率和每日调用次数。</li><li><strong>看结果：</strong>右侧会自动显示单次、每日、每月成本，并用图表展示输入和输出的费用占比。</li></ol><p class="help-note">不确定 Token 数时，先用粗略估计即可；后续拿到账单或日志后，可以切到「总量算单次」再修正。</p></div>',
+    "modal.help.section.modes":      "应该选哪种输入方式？",
+    "modal.help.modes.body":         '<div class="help-choice-grid"><div class="help-choice-card"><h5>单次算总量</h5><p><strong>适合：</strong>你正在做方案预估，还没有完整日志。</p><p><strong>怎么填：</strong>估算一次请求里大概有多少输入、多少输出，再填每天调用多少次。</p><p><strong>例子：</strong>一次客服问答约 3,000 输入 Token、800 输出 Token、每天 2,000 次。</p></div><div class="help-choice-card"><h5>总量算单次</h5><p><strong>适合：</strong>你已经有一段时间的调用日志或账单。</p><p><strong>怎么填：</strong>填总输入命中、总输入未命中、总输出和调用次数，系统会自动折算平均单次用量。</p><p><strong>例子：</strong>昨天共调用 10,000 次，日志里有总输入和总输出 Token。</p></div></div>',
+    "modal.help.section.tiers": "几个容易混淆的词",
+    "modal.help.tiers.body":         '<dl class="help-glossary"><dt>Token</dt><dd>AI 服务的计费单位。可以粗略理解为一小段文字。不同语言、标点和格式都会影响 Token 数。</dd><dt>输入 Token</dt><dd>你发给模型的全部内容，包括用户问题、系统提示词、历史对话、检索到的资料等。长上下文会显著增加输入成本。</dd><dt>输出 Token</dt><dd>模型生成的回答。推理模型中的 reasoning / thinking 内容，通常也应计入输出成本。</dd><dt>缓存命中率</dt><dd>有多少输入内容被供应商识别为可复用缓存。支持缓存计费的模型里，命中率越高，输入成本通常越低。不使用缓存或不确定时填 0%。</dd><dt>分档定价</dt><dd>有些模型会按单次输入或输出长度切换价格档位。你只需要按官方价格页录入阈值；最后一档没有上限时，把上限留空。</dd></dl>',
+    "modal.help.section.addCustom":  "添加自己的模型价格",
+    "modal.help.addCustom.body":     '<p>左侧点击「添加」即可创建自定义模型。所有价格都按<strong>当前币种 / 100 万 tokens</strong>填写。</p><ul><li><strong>固定单价：</strong>输入价和输出价不会随长度变化。大多数模型可以先选这个。</li><li><strong>按输入量分档：</strong>官方价格页写明「输入超过某个长度后价格变化」时使用。先填输入上限，再填这一档的输入价、输出价和缓存价。</li><li><strong>按输出量分档：</strong>官方价格页写明「输出超过某个长度后价格变化」时使用。用法同上，只是分档依据换成输出长度。</li></ul><p class="help-note">价格换算：如果官方写 $0.15 / 1M tokens，就填 0.15；如果写 $0.00015 / 1K tokens，换算成每百万也是 0.15。没有缓存价格时可以留空。</p>',
+    "modal.help.section.extra":      "对比、导入导出和复杂计费",
+    "modal.help.extra.body":         '<ul><li><strong>模型对比：</strong>选中模型后点击「加入对比」，或右键模型加入对比。对比区会用同一组参数计算最多 5 个模型。</li><li><strong>导入 / 导出：</strong>左侧顶部按钮可以导出自定义模型和币种配置，换设备时再导入。</li><li><strong>Batch、夜间折扣、促销价：</strong>复制一个模型，把价格改成折扣后的价格，并在名称里标注 Batch / Night 即可。</li><li><strong>多模态、缓存写入、工具调用：</strong>目前没有单独字段。需要精算时，建议拆成多个模型条目，或手动把额外成本折算进输入 / 输出价格。</li></ul>',
+    "modal.help.section.lang": "结果只是估算",
+    "modal.help.lang.body":          '<p>ModelCost 的结果适合做方案比较、预算预估和账单复盘，不等同于最终账单。不同厂商对缓存、推理 Token、多模态输入、批处理、地区价格和促销折扣的处理可能不同。</p><p>正式报价前，请用厂商官方价格页和你的实际账单再核对一次。</p>',
 
     // 右键菜单
     "menu.select":   "选中此模型",
@@ -377,18 +377,18 @@ window.BUILTIN_TRANSLATIONS = {
     "modal.manage.empty":  'No custom models yet. Use "Add" in the sidebar.',
 
     "modal.help.title":              "Help",
-    "modal.help.section.basic":      "Quick start",
-    "modal.help.basic.body":         '<ol><li>Pick a built-in model in the left sidebar, or click ＋ Add to define your own.</li><li>Fill input/output token counts (full values, not K or M), cache hit rate, and daily call count.</li><li>The Result table shows single / daily / monthly cost in USD and CNY. The donut chart shows the input vs output split.</li><li>Right-click any model → Add to compare, to benchmark up to 5 side by side.</li></ol>',
-    "modal.help.section.modes":      "Two input modes",
-    "modal.help.modes.body":         "<ul><li><strong>Single call</strong>: enter the input/output tokens of one call; we multiply by daily calls.</li><li><strong>From totals</strong>: enter aggregated hit/miss/output tokens over a period plus call count; we derive per-call averages and the cache hit rate. Handy for log-driven estimates.</li></ul>",
-    "modal.help.section.tiers":      "Three pricing types",
-    "modal.help.tiers.body":         "<dl><dt><code>standard</code></dt><dd>Flat input / output / cacheHit. Covers GPT, Claude, DeepSeek and most others.</dd><dt><code>tiered_by_input</code></dt><dd>Tier picked by the <strong>single-call input token total</strong>; each row carries input/output/cache prices. E.g. Gemini 2.5 Pro ≤200K = $1.25/$10/$0.31, &gt;200K = $2.50/$15/$0.625 (output price jumps too).</dd><dt><code>tiered_by_output</code></dt><dd>Tier picked by the <strong>single-call output token total</strong>, same shape (symmetric backup).</dd></dl>",
-    "modal.help.section.addCustom":  "Adding / editing a custom model",
-    "modal.help.addCustom.body":     '<p>Open the form via ＋ Add in the sidebar. All prices are per <em>1M tokens</em> in the chosen currency.</p><ul><li><strong>standard</strong>: fill the three flat prices.</li><li><strong>tiered_by_input</strong>: each row carries [input threshold + input/output/cacheHit prices]. The threshold is the single-call input token total (200K = 200000). Leave the last row threshold empty for ∞.</li><li><strong>tiered_by_output</strong>: same shape; threshold means <strong>output</strong> token count.</li></ul><p>Notes: JSON export turns <code>Infinity</code> into <code>null</code>; import restores it automatically, no manual fix needed.</p>',
-    "modal.help.section.extra":      "Schemes not natively supported",
-    "modal.help.extra.body":         '<p>The following schemes have no dedicated field, but can be modeled with what we have:</p><ul><li><strong>Multimodal split-rate</strong> (audio token ≠ text): create one model entry per modality.</li><li><strong>Batch API 50% off</strong>: clone the model entry and halve input/output prices; suffix the name with "-batch".</li><li><strong>Off-peak discount</strong> (e.g. DeepSeek night-time half-price): same trick, "-night" suffix.</li><li><strong>Reasoning tokens</strong> (o-series / DeepSeek R1): just count them as output — every provider bills them at the output rate.</li><li><strong>Anthropic cacheWrite</strong>: we only model the <em>cache hit rate</em>; the one-time cache-write premium is not separately modeled. For precision, manually bump the input price on the first call.</li></ul>',
-    "modal.help.section.lang":       "Languages",
-    "modal.help.lang.body":          '<p>The picker in the top bar switches the UI. Click it to choose from the available languages.</p>',
+    "modal.help.section.basic":      "Estimate AI cost in 3 steps",
+    "modal.help.basic.body":         '<div class="help-hero"><p><strong>What ModelCost does:</strong> it helps estimate how much an AI model may cost per call, per day, and per month.</p><ol><li><strong>Pick a model:</strong> choose a model from the sidebar, or click Add to enter your own pricing.</li><li><strong>Enter usage:</strong> fill input tokens, output tokens, cache hit rate, and calls per day.</li><li><strong>Read the result:</strong> ModelCost shows single-call, daily, and monthly estimates, plus the input/output cost split.</li></ol><p class="help-note">If you do not know the token counts yet, start with a rough estimate. Once you have logs or billing data, switch to “From totals” to refine the estimate.</p></div>',
+    "modal.help.section.modes":      "Which input mode should I use?",
+    "modal.help.modes.body":         '<div class="help-choice-grid"><div class="help-choice-card"><h5>Single call</h5><p><strong>Use when:</strong> you are estimating a plan and do not have logs yet.</p><p><strong>How:</strong> estimate input and output tokens for one request, then enter expected calls per day.</p><p><strong>Example:</strong> one support reply uses about 3,000 input tokens and 800 output tokens, 2,000 times per day.</p></div><div class="help-choice-card"><h5>From totals</h5><p><strong>Use when:</strong> you already have logs or billing data for a period.</p><p><strong>How:</strong> enter total cached input, total uncached input, total output, and call count. ModelCost derives per-call averages.</p><p><strong>Example:</strong> yesterday you made 10,000 calls and have total input/output token counts from logs.</p></div></div>',
+    "modal.help.section.tiers":      "Terms that matter",
+    "modal.help.tiers.body":         '<dl class="help-glossary"><dt>Token</dt><dd>The billing unit used by AI services. Roughly, it is a small piece of text. Language, punctuation, and formatting can all change the count.</dd><dt>Input tokens</dt><dd>Everything sent to the model: user message, system prompt, chat history, retrieved context, and attached text.</dd><dt>Output tokens</dt><dd>Everything generated by the model. For reasoning models, reasoning / thinking content should usually be counted as output cost.</dd><dt>Cache hit rate</dt><dd>The share of input tokens reused from provider-side cache. For models with cache pricing, a higher hit rate usually lowers input cost. Use 0% if you do not use cache or are unsure.</dd><dt>Tiered pricing</dt><dd>Some models switch price tiers based on single-call input or output length. Enter the thresholds from the official pricing page; leave the final threshold blank if there is no upper limit.</dd></dl>',
+    "modal.help.section.addCustom":  "Add your own model pricing",
+    "modal.help.addCustom.body":     '<p>Click Add in the sidebar to create a custom model. All prices are entered as <strong>selected currency / 1M tokens</strong>.</p><ul><li><strong>Flat price:</strong> input and output prices do not change with request length. Most models can start here.</li><li><strong>Tier by input length:</strong> use this when the official price changes after the input passes a threshold. Enter the input threshold and the prices for that tier.</li><li><strong>Tier by output length:</strong> same idea, but the tier is selected by output length.</li></ul><p class="help-note">Conversion tip: if the official price is $0.15 / 1M tokens, enter 0.15. If it is $0.00015 / 1K tokens, it is also 0.15 per 1M. Leave cache price blank if unavailable.</p>',
+    "modal.help.section.extra":      "Compare, import/export, and complex pricing",
+    "modal.help.extra.body":         '<ul><li><strong>Compare models:</strong> click Add to compare, or right-click a model. The comparison uses the same parameters for up to 5 models.</li><li><strong>Import / export:</strong> use the sidebar buttons to export custom models and currencies as JSON, then import them on another device.</li><li><strong>Batch, off-peak, promo pricing:</strong> duplicate a model, change the prices, and mark the name with Batch / Night / Promo.</li><li><strong>Multimodal, cache write, tool calls:</strong> these are not modeled as separate fields yet. For precise estimates, split them into separate model entries or fold the extra cost into input/output prices.</li></ul>',
+    "modal.help.section.lang":       "The result is an estimate",
+    "modal.help.lang.body":          '<p>ModelCost is designed for model comparison, budgeting, and billing review. It is not guaranteed to match the final provider bill exactly.</p><p>Before using the result for formal pricing, verify it against the provider’s official pricing page and your actual invoice.</p>',
 
     "menu.select":   "Select this model",
     "menu.compare":  "Add to compare",

@@ -1,6 +1,6 @@
 {
-  "name": "TokenLens - AI 费率计算器",
-  "short_name": "TokenLens",
+  "name": "ModelCost - AI 费率计算器",
+  "short_name": "ModelCost",
   "description": "AI 模型 Token 成本计算器，支持阶梯定价、多币种、多模型横向对比",
   "start_url": "./index.html",
   "display": "standalone",

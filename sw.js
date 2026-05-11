@@ -1,4 +1,4 @@
-const CACHE_VERSION = "tokenlens-v2";
+const CACHE_VERSION = "modelcost-v2";
 
 const PRECACHE_ASSETS = [
   "./index.html",

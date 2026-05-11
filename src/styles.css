@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   TokenLens — AI 费率计算器  Complete Styles
+   ModelCost — AI 费率计算器  Complete Styles
    ═══════════════════════════════════════════ */
 
 /* ── CSS Variables: Light Theme ── */
@@ -1135,13 +1135,22 @@ a { color: var(--brand-500); text-decoration: none; }
   line-height: 1.65;
   color: var(--text-primary);
 }
-.help-section { margin-bottom: 18px; }
+#helpModal .modal__title {
+  color: var(--brand-500);
+}
+.help-section {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
 .help-section:last-child { margin-bottom: 4px; }
 .help-section h4 {
   font-size: 14px;
   font-weight: 700;
   color: var(--brand-500);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   padding-bottom: 4px;
   border-bottom: 1px dashed var(--border-default);
 }
@@ -1150,7 +1159,7 @@ a { color: var(--brand-500); text-decoration: none; }
   padding-left: 22px;
   margin: 4px 0;
 }
-.help-section li { margin-bottom: 4px; }
+.help-section li { margin-bottom: 6px; }
 .help-section dl {
   margin: 4px 0;
   display: grid;
@@ -1169,6 +1178,45 @@ a { color: var(--brand-500); text-decoration: none; }
   color: var(--brand-500);
 }
 .help-section strong { color: var(--text-primary); }
+.help-hero {
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.18);
+}
+.help-note {
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.help-choice-grid {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0;
+}
+.help-choice-card {
+  padding: 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-base);
+}
+.help-choice-card h5 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.help-choice-card p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.help-choice-card p + p { margin-top: 8px; }
+.help-glossary {
+  margin: 8px 0;
+  display: grid;
+  gap: 10px 14px;
+}
+.help-glossary dt { font-family: "SF Mono", monospace; font-size: 13px; color: var(--text-primary); }
+.help-glossary dd { margin: 0; color: var(--text-secondary); }
 
 .modal__header {
   display: flex;
