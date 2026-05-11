@@ -65,7 +65,7 @@ const Renderer = (() => {
                  data-model-id="${model.id}">
               <span class="model-item__name">${model.name}</span>
               <div class="model-item__badges">
-                ${model.pricing.type === 'tiered_output' ? `
+                ${model.pricing.type !== 'standard' ? `
                   <span class="badge badge--tier" title="阶梯定价"><i data-lucide="layers"></i></span>` : ''}
                 <span class="badge badge--currency">${model.currency}</span>
                 ${model.isCustom ? `<span class="badge badge--custom">自定义</span>` : ''}
@@ -89,56 +89,97 @@ const Renderer = (() => {
     currBadge.textContent = model.currency;
 
     const tierBadge = document.getElementById("bannerTierBadge");
-    tierBadge.style.display = model.pricing.type === "tiered_output" ? "inline-flex" : "none";
+    tierBadge.style.display = model.pricing.type !== "standard" ? "inline-flex" : "none";
 
     document.getElementById("bannerCompareBtn").style.display = "inline-flex";
   }
 
   // ── Tier Card ──
-  function renderTierCard(pricing, outputTokens) {
+  function renderTierCard(pricing, inputTokens, outputTokens) {
     const card = document.getElementById("tierCard");
     const rows = document.getElementById("tierCardRows");
 
-    if (pricing.type !== "tiered_output") {
+    if (pricing.type === "standard") {
       card.style.display = "none";
       return;
     }
 
     card.style.display = "block";
+    let html = `
+      <div class="tier-table-header" style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); padding: 0 12px 6px; border-bottom: 1px dashed rgba(245,158,11,0.2); margin-bottom: 8px;">
+        <span>Token 用量范围</span>
+        <span>单价（/ 百万 tokens）</span>
+      </div>
+    `;
 
-    const html = pricing.outputTiers.map((tier, idx) => {
-      const prevMax = idx > 0 ? pricing.outputTiers[idx - 1].maxOutputTokens : 0;
-      const isActive = outputTokens <= tier.maxOutputTokens &&
-        (idx === 0 || outputTokens > prevMax);
+    // Render input tiers (for tiered_input / tiered_both)
+    if (pricing.inputTiers) {
+      html += `<div class="tier-section-label">输入阶梯：</div>`;
+      html += pricing.inputTiers.map((tier, idx) => {
+        const prevMax = idx > 0 ? pricing.inputTiers[idx - 1].maxInputTokens : 0;
+        const isActive = inputTokens <= tier.maxInputTokens &&
+          (idx === 0 || inputTokens > prevMax);
 
-      const label = tier.maxOutputTokens === Infinity
-        ? `输出 > ${prevMax} tokens`
-        : idx === 0
-          ? `输出 ≤ ${tier.maxOutputTokens} tokens`
-          : `输出 ${prevMax + 1} ~ ${tier.maxOutputTokens} tokens`;
+        const label = tier.maxInputTokens === Infinity
+          ? `输入 > ${prevMax.toLocaleString()} tokens`
+          : idx === 0
+            ? `输入 ≤ ${tier.maxInputTokens.toLocaleString()} tokens`
+            : `输入 ${(prevMax + 1).toLocaleString()} ~ ${tier.maxInputTokens.toLocaleString()} tokens`;
 
-      return `
-        <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
-          <div class="tier-row__label">
-            ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
-            ${label}
-          </div>
-          <div class="tier-row__price">
-            ${tier.price.toFixed(2)} / M tokens
-            ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
-          </div>
-        </div>`;
-    }).join('');
+        const cacheInfo = tier.cacheHit != null ? ` · 缓存 ${tier.cacheHit.toFixed(3)}` : '';
+
+        return `
+          <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
+            <div class="tier-row__label">
+              ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
+              ${label}
+            </div>
+            <div class="tier-row__price">
+              ${tier.price.toFixed(2)}${cacheInfo} / M
+              ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // Render output tiers (for tiered_output / tiered_both)
+    if (pricing.outputTiers) {
+      if (pricing.inputTiers) html += `<div style="margin-top:8px;"></div>`;
+      html += `<div class="tier-section-label">输出阶梯：</div>`;
+      html += pricing.outputTiers.map((tier, idx) => {
+        const prevMax = idx > 0 ? pricing.outputTiers[idx - 1].maxOutputTokens : 0;
+        const isActive = outputTokens <= tier.maxOutputTokens &&
+          (idx === 0 || outputTokens > prevMax);
+
+        const label = tier.maxOutputTokens === Infinity
+          ? `输出 > ${prevMax.toLocaleString()} tokens`
+          : idx === 0
+            ? `输出 ≤ ${tier.maxOutputTokens.toLocaleString()} tokens`
+            : `输出 ${(prevMax + 1).toLocaleString()} ~ ${tier.maxOutputTokens.toLocaleString()} tokens`;
+
+        return `
+          <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
+            <div class="tier-row__label">
+              ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
+              ${label}
+            </div>
+            <div class="tier-row__price">
+              ${tier.price.toFixed(2)} / M tokens
+              ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
 
     rows.innerHTML = html;
     lucide.createIcons();
   }
 
   // ── Results Table ──
-  function renderResults(result) {
+  function renderResults(result, model) {
     const tbody = document.getElementById("resultsTableBody");
 
-    if (!result) {
+    if (!result || !model) {
       tbody.innerHTML = `
         <tr class="results-empty">
           <td colspan="3">← 请先从左侧选择一个模型</td>
@@ -173,6 +214,25 @@ const Renderer = (() => {
         <td class="results-row__usd">${fmtUSD(monthlyCostUSD)}</td>
         <td class="results-row__cny highlight-cny">${fmtCNY(monthlyCostCNY)}</td>
       </tr>`;
+
+    // Check if cache is supported
+    const pricing = model.pricing;
+    let cacheSupported = true;
+    if (pricing.type === "standard" || pricing.type === "tiered_output") {
+      cacheSupported = pricing.cacheHit !== null;
+    } else if (pricing.inputTiers) {
+      cacheSupported = pricing.inputTiers.some(t => t.cacheHit !== null);
+    }
+
+    if (!cacheSupported) {
+      tbody.innerHTML += `
+        <tr>
+          <td colspan="3" style="padding:8px 16px; font-size:12px; color:var(--text-muted); text-align:center; background:var(--bg-base);">
+            <i data-lucide="info" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>
+            此模型不支持缓存定价，缓存命中率设置不会影响费用
+          </td>
+        </tr>`;
+    }
 
     lucide.createIcons();
     renderBreakdown(result.detail);

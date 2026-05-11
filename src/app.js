@@ -10,17 +10,38 @@ const AppState = {
   exchangeRate: 7.25,
   allModels: [],
   allCurrencies: [],
+  inputMode: "single", // "single" | "total"
 };
 
 // ═══════════ Helpers ═══════════
 function getParams() {
-  return {
-    inputTokens:  Math.max(0, parseInt(document.getElementById("inputTokens").value)  || 0),
-    outputTokens: Math.max(0, parseInt(document.getElementById("outputTokens").value) || 0),
-    cacheHitRate: Math.min(1, Math.max(0, (parseFloat(document.getElementById("cacheHitRate").value) || 0) / 100)),
-    dailyCalls:   Math.max(0, parseInt(document.getElementById("dailyCalls").value)   || 0),
-    usdToCny:     parseFloat(document.getElementById("usdToCny").value)   || 7.25,
-  };
+  const usdToCny = parseFloat(document.getElementById("usdToCny").value) || 7.25;
+  const dailyCalls = Math.max(0, parseInt(document.getElementById("dailyCalls").value) || 0);
+
+  let inputTokens, outputTokens, cacheHitRate;
+
+  if (AppState.inputMode === "total") {
+    const totalCached   = Math.max(0, parseInt(document.getElementById("totalCachedTokens").value) || 0);
+    const totalUncached = Math.max(0, parseInt(document.getElementById("totalUncachedTokens").value) || 0);
+    const totalOutput   = Math.max(0, parseInt(document.getElementById("totalOutputTokens").value) || 0);
+    const totalCalls    = Math.max(1, parseInt(document.getElementById("totalCalls").value) || 1);
+
+    const totalInput = totalCached + totalUncached;
+    inputTokens  = Math.round(totalInput / totalCalls);
+    outputTokens = Math.round(totalOutput / totalCalls);
+    cacheHitRate = totalInput > 0 ? totalCached / totalInput : 0;
+
+    // Update computed summary display
+    document.getElementById("computedInputPerCall").textContent = inputTokens.toLocaleString() + " tokens";
+    document.getElementById("computedOutputPerCall").textContent = outputTokens.toLocaleString() + " tokens";
+    document.getElementById("computedCacheRate").textContent = (cacheHitRate * 100).toFixed(1) + "%";
+  } else {
+    inputTokens  = Math.max(0, parseInt(document.getElementById("inputTokens").value) || 0);
+    outputTokens = Math.max(0, parseInt(document.getElementById("outputTokens").value) || 0);
+    cacheHitRate = Math.min(1, Math.max(0, (parseFloat(document.getElementById("cacheHitRate").value) || 0) / 100));
+  }
+
+  return { inputTokens, outputTokens, cacheHitRate, dailyCalls, usdToCny };
 }
 
 function refreshAllModels() {
@@ -34,6 +55,13 @@ function refreshAllModels() {
         }
       });
     }
+    if (m.pricing?.inputTiers) {
+      m.pricing.inputTiers.forEach(t => {
+        if (t.maxInputTokens === null || t.maxInputTokens === undefined) {
+          t.maxInputTokens = Infinity;
+        }
+      });
+    }
   });
   AppState.allModels = [...window.BUILTIN_MODELS, ...custom];
 }
@@ -43,15 +71,66 @@ function refreshAllCurrencies() {
   AppState.allCurrencies = [...window.BUILTIN_CURRENCIES, ...custom];
 }
 
+// ═══════════ Input Mode Switch ═══════════
+function switchInputMode(mode) {
+  AppState.inputMode = mode;
+  document.querySelectorAll("#modeSwitch .mode-switch__btn").forEach(btn => {
+    btn.classList.toggle("mode-switch__btn--active", btn.dataset.mode === mode);
+  });
+  document.getElementById("singleModeFields").style.display = mode === "single" ? "grid" : "none";
+  document.getElementById("totalModeFields").style.display = mode === "total" ? "grid" : "none";
+
+  // In total mode, hide the separate cache hit rate field (it's computed from totals)
+  document.getElementById("cacheHitRateItem").style.display = mode === "total" ? "none" : "";
+
+  triggerCalculate();
+}
+
+// ═══════════ Cache Calculator ═══════════
+function toggleCacheCalc() {
+  const panel = document.getElementById("cacheCalcPanel");
+  const toggle = document.getElementById("cacheCalcToggle");
+  const isVisible = panel.style.display !== "none";
+  panel.style.display = isVisible ? "none" : "block";
+  toggle.classList.toggle("cache-calc-toggle--active", !isVisible);
+}
+
+function updateCacheCalcResult() {
+  const hit  = Math.max(0, parseInt(document.getElementById("calcCacheHit").value) || 0);
+  const miss = Math.max(0, parseInt(document.getElementById("calcCacheMiss").value) || 0);
+  const total = hit + miss;
+  if (total > 0) {
+    const rate = (hit / total * 100).toFixed(1);
+    document.getElementById("calcCacheResult").textContent = rate + "%";
+  } else {
+    document.getElementById("calcCacheResult").textContent = "—";
+  }
+}
+
+function applyCacheRate() {
+  const hit  = Math.max(0, parseInt(document.getElementById("calcCacheHit").value) || 0);
+  const miss = Math.max(0, parseInt(document.getElementById("calcCacheMiss").value) || 0);
+  const total = hit + miss;
+  if (total > 0) {
+    const rate = (hit / total * 100).toFixed(1);
+    document.getElementById("cacheHitRate").value = rate;
+    toggleCacheCalc();
+    triggerCalculate();
+    Renderer.toast(`缓存命中率已设为 ${rate}%`, "success", 2000);
+  } else {
+    Renderer.toast("请输入命中和未命中 Token 数", "warning");
+  }
+}
+
 // ═══════════ Calculate ═══════════
 function triggerCalculate() {
   const params = getParams();
   const model  = AppState.allModels.find(m => m.id === AppState.selectedModelId);
 
   if (model) {
-    Renderer.renderTierCard(model.pricing, params.outputTokens);
+    Renderer.renderTierCard(model.pricing, params.inputTokens, params.outputTokens);
     const result = Calculator.calculate(params, model.pricing, model.currency, AppState.allCurrencies);
-    Renderer.renderResults(result);
+    Renderer.renderResults(result, model);
 
     Storage.savePreferences({ lastParams: {
       inputTokens:  params.inputTokens,
@@ -128,7 +207,11 @@ function openModelModal(existingModel = null) {
 
   title.textContent = existingModel ? "编辑模型" : "添加自定义模型";
   form.reset();
-  document.getElementById("fm-tier-rows").innerHTML = "";
+  // Clear all tier row containers
+  ["fm-tier-output-rows", "fm-tier-input-rows", "fm-tier-both-input-rows", "fm-tier-both-output-rows"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
 
   // Populate currency select
   const currencySelect = document.getElementById("fm-currency");
@@ -142,24 +225,39 @@ function openModelModal(existingModel = null) {
     currencySelect.value = existingModel.currency;
     document.getElementById("fm-type").value     = existingModel.pricing.type;
 
-    if (existingModel.pricing.type === "standard") {
-      document.getElementById("fm-input").value    = existingModel.pricing.input || "";
-      document.getElementById("fm-cacheHit").value = existingModel.pricing.cacheHit ?? "";
-      document.getElementById("fm-output").value   = existingModel.pricing.output || "";
-    } else {
-      document.getElementById("fm-tier-input").value    = existingModel.pricing.input || "";
-      document.getElementById("fm-tier-cacheHit").value = existingModel.pricing.cacheHit ?? "";
-      // Restore tier rows
-      const tiers = existingModel.pricing.outputTiers || [];
-      tiers.forEach((tier, idx) => {
-        if (tier.maxOutputTokens !== Infinity) {
-          addTierRow(tier.maxOutputTokens, tier.price);
-        } else {
-          // Last tier: add with empty max (means Infinity)
-          addTierRow("∞", tier.price);
-        }
+    const p = existingModel.pricing;
+
+    if (p.type === "standard") {
+      document.getElementById("fm-input").value    = p.input || "";
+      document.getElementById("fm-cacheHit").value = p.cacheHit ?? "";
+      document.getElementById("fm-output").value   = p.output || "";
+
+    } else if (p.type === "tiered_output") {
+      document.getElementById("fm-tier-input").value    = p.input || "";
+      document.getElementById("fm-tier-cacheHit").value = p.cacheHit ?? "";
+      (p.outputTiers || []).forEach(tier => {
+        const maxLabel = tier.maxOutputTokens === Infinity ? "" : tier.maxOutputTokens;
+        addTierRow("fm-tier-output-rows", "output", maxLabel, tier.price);
+      });
+
+    } else if (p.type === "tiered_input") {
+      document.getElementById("fm-tier-output-fixed").value = p.output || "";
+      (p.inputTiers || []).forEach(tier => {
+        const maxLabel = tier.maxInputTokens === Infinity ? "" : tier.maxInputTokens;
+        addTierRow("fm-tier-input-rows", "input", maxLabel, tier.price, tier.cacheHit);
+      });
+
+    } else if (p.type === "tiered_both") {
+      (p.inputTiers || []).forEach(tier => {
+        const maxLabel = tier.maxInputTokens === Infinity ? "" : tier.maxInputTokens;
+        addTierRow("fm-tier-both-input-rows", "input", maxLabel, tier.price, tier.cacheHit);
+      });
+      (p.outputTiers || []).forEach(tier => {
+        const maxLabel = tier.maxOutputTokens === Infinity ? "" : tier.maxOutputTokens;
+        addTierRow("fm-tier-both-output-rows", "output", maxLabel, tier.price);
       });
     }
+
     form.dataset.editId = existingModel.id;
   } else {
     delete form.dataset.editId;
@@ -175,21 +273,43 @@ function closeModelModal() {
 
 function togglePricingSection(type) {
   document.getElementById("fm-standard-section").style.display = type === "standard" ? "block" : "none";
-  document.getElementById("fm-tier-section").style.display = type === "tiered_output" ? "block" : "none";
+  document.getElementById("fm-tier-output-section").style.display = type === "tiered_output" ? "block" : "none";
+  document.getElementById("fm-tier-input-section").style.display = type === "tiered_input" ? "block" : "none";
+  document.getElementById("fm-tier-both-section").style.display = type === "tiered_both" ? "block" : "none";
 }
 
 let tierRowCounter = 0;
-function addTierRow(maxVal = "", price = "") {
-  const container = document.getElementById("fm-tier-rows");
+/**
+ * Add a tier row to the specified container.
+ * @param {string} containerId - ID of the container div
+ * @param {"output"|"input"} tierType - whether this is an output or input tier row
+ * @param {string|number} maxVal - max token threshold
+ * @param {string|number} price - price per million tokens
+ * @param {string|number|null} cacheHitVal - cache hit price (only for input tiers)
+ */
+function addTierRow(containerId, tierType = "output", maxVal = "", price = "", cacheHitVal = null) {
+  const container = document.getElementById(containerId);
   const idx = tierRowCounter++;
   const row = document.createElement("div");
   row.className = "tier-input-row";
+
+  const label = tierType === "input" ? "输入" : "输出";
+  const maxKey = tierType === "input" ? "maxInputTokens" : "maxOutputTokens";
+
+  let cacheHitHtml = "";
+  if (tierType === "input") {
+    cacheHitHtml = `
+      <span>缓存</span>
+      <input type="number" name="tier-cache-${idx}" placeholder="0.31" min="0" step="0.001" value="${cacheHitVal ?? ""}" style="width:70px;" />`;
+  }
+
   row.innerHTML = `
-    <span>输出 ≤</span>
-    <input type="text" name="tier-max-${idx}" placeholder="200 或 ∞" value="${maxVal}" style="width:70px;" />
+    <span>${label} ≤</span>
+    <input type="text" name="tier-max-${idx}" placeholder="留空=无上限" value="${maxVal}" style="width:84px;" />
     <span>tokens →</span>
     <input type="number" name="tier-price-${idx}" placeholder="5.00" min="0" step="0.001" value="${price}" style="width:80px;" />
     <span>/ M</span>
+    ${cacheHitHtml}
     <button type="button" class="icon-btn icon-btn--danger tier-remove-btn">
       <i data-lucide="x"></i>
     </button>`;
@@ -197,6 +317,37 @@ function addTierRow(maxVal = "", price = "") {
   lucide.createIcons();
 
   row.querySelector(".tier-remove-btn").addEventListener("click", () => row.remove());
+}
+
+/** Parse tier rows from a container into an array of tier objects */
+function parseTierRows(containerId, tierType) {
+  const rows = document.querySelectorAll(`#${containerId} .tier-input-row`);
+  const tiers = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll("input");
+    const maxStr = inputs[0]?.value?.trim();
+    const price  = parseFloat(inputs[1]?.value);
+    if (!isNaN(price)) {
+      const maxVal = (!maxStr || maxStr === "∞" || maxStr.toLowerCase() === "infinity")
+        ? Infinity
+        : parseFloat(maxStr);
+      if (!isNaN(maxVal)) {
+        if (tierType === "input") {
+          const cacheHit = inputs[2] ? (inputs[2].value ? parseFloat(inputs[2].value) : null) : null;
+          tiers.push({ maxInputTokens: maxVal, price, cacheHit });
+        } else {
+          tiers.push({ maxOutputTokens: maxVal, price });
+        }
+      }
+    }
+  });
+  // Sort tiers
+  if (tierType === "input") {
+    tiers.sort((a, b) => a.maxInputTokens - b.maxInputTokens);
+  } else {
+    tiers.sort((a, b) => a.maxOutputTokens - b.maxOutputTokens);
+  }
+  return tiers;
 }
 
 function handleModelFormSubmit(e) {
@@ -221,36 +372,24 @@ function handleModelFormSubmit(e) {
       output:   parseFloat(document.getElementById("fm-output").value)   || 0,
       cacheHit: document.getElementById("fm-cacheHit").value ? parseFloat(document.getElementById("fm-cacheHit").value) : null,
     };
-  } else {
-    const tierRows = document.querySelectorAll("#fm-tier-rows .tier-input-row");
-    const outputTiers = [];
-    tierRows.forEach(row => {
-      const inputs = row.querySelectorAll("input");
-      const maxStr = inputs[0]?.value?.trim();
-      const price  = parseFloat(inputs[1]?.value);
-      if (maxStr && !isNaN(price)) {
-        const maxVal = (maxStr === "∞" || maxStr.toLowerCase() === "infinity" || maxStr === "")
-          ? Infinity
-          : parseFloat(maxStr);
-        if (!isNaN(maxVal)) {
-          outputTiers.push({ maxOutputTokens: maxVal, price });
-        }
-      }
-    });
-
-    // Sort tiers by maxOutputTokens
-    outputTiers.sort((a, b) => a.maxOutputTokens - b.maxOutputTokens);
-
-    // Ensure last tier is Infinity
-    if (outputTiers.length > 0 && outputTiers.at(-1).maxOutputTokens !== Infinity) {
-      // last tier already—do nothing if user intended finite
-    }
-
+  } else if (type === "tiered_output") {
     pricing = {
       type: "tiered_output",
       input:    parseFloat(document.getElementById("fm-tier-input").value)    || 0,
       cacheHit: document.getElementById("fm-tier-cacheHit").value ? parseFloat(document.getElementById("fm-tier-cacheHit").value) : null,
-      outputTiers,
+      outputTiers: parseTierRows("fm-tier-output-rows", "output"),
+    };
+  } else if (type === "tiered_input") {
+    pricing = {
+      type: "tiered_input",
+      output: parseFloat(document.getElementById("fm-tier-output-fixed").value) || 0,
+      inputTiers: parseTierRows("fm-tier-input-rows", "input"),
+    };
+  } else if (type === "tiered_both") {
+    pricing = {
+      type: "tiered_both",
+      inputTiers:  parseTierRows("fm-tier-both-input-rows", "input"),
+      outputTiers: parseTierRows("fm-tier-both-output-rows", "output"),
     };
   }
 
@@ -475,7 +614,8 @@ function bindEvents() {
   document.getElementById("themeToggleBtn").addEventListener("click", toggleTheme);
 
   // Param inputs: debounced calculation
-  const paramInputIds = ["inputTokens", "outputTokens", "cacheHitRate", "dailyCalls", "usdToCny"];
+  const paramInputIds = ["inputTokens", "outputTokens", "cacheHitRate", "dailyCalls", "usdToCny",
+                         "totalCachedTokens", "totalUncachedTokens", "totalOutputTokens", "totalCalls"];
   let debounceTimer = null;
   paramInputIds.forEach(id => {
     document.getElementById(id).addEventListener("input", () => {
@@ -483,6 +623,18 @@ function bindEvents() {
       debounceTimer = setTimeout(triggerCalculate, 250);
     });
   });
+
+  // Mode switch
+  document.getElementById("modeSwitch").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-mode]");
+    if (btn) switchInputMode(btn.dataset.mode);
+  });
+
+  // Cache calculator
+  document.getElementById("cacheCalcToggle").addEventListener("click", toggleCacheCalc);
+  document.getElementById("calcCacheHit").addEventListener("input", updateCacheCalcResult);
+  document.getElementById("calcCacheMiss").addEventListener("input", updateCacheCalcResult);
+  document.getElementById("applyCacheRateBtn").addEventListener("click", applyCacheRate);
 
   // Model search
   document.getElementById("modelSearchInput").addEventListener("input", (e) => {
@@ -517,17 +669,20 @@ function bindEvents() {
   document.getElementById("addModelBtn").addEventListener("click", () => openModelModal());
   document.getElementById("modalCloseBtn").addEventListener("click", closeModelModal);
   document.getElementById("cancelModalBtn").addEventListener("click", closeModelModal);
-  document.getElementById("modelModalOverlay").addEventListener("click", (e) => {
-    if (e.target === e.currentTarget) closeModelModal();
-  });
 
   // Pricing type toggle
   document.getElementById("fm-type").addEventListener("change", (e) => {
     togglePricingSection(e.target.value);
   });
 
-  // Add tier row
-  document.getElementById("addTierRowBtn").addEventListener("click", () => addTierRow());
+  // Add tier row buttons (generic, using data attributes)
+  document.querySelectorAll(".fm-add-tier-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.tierTarget;
+      const type = btn.dataset.tierType || "output";
+      addTierRow(target, type);
+    });
+  });
 
   // Form submit
   document.getElementById("modelForm").addEventListener("submit", handleModelFormSubmit);
@@ -683,6 +838,11 @@ function bindEvents() {
     deferredInstallPrompt = null;
   });
 
+  // Import / Export
+  document.getElementById("exportBtn")?.addEventListener("click", exportCustomModels);
+  document.getElementById("importBtn")?.addEventListener("click", () => document.getElementById("importFileInput")?.click());
+  document.getElementById("importFileInput")?.addEventListener("change", handleImportFile);
+
   // Keyboard: Escape closes modals
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -694,6 +854,69 @@ function bindEvents() {
       document.querySelector(".context-menu")?.remove();
     }
   });
+}
+
+// ═══════════ Import / Export ═══════════
+function exportCustomModels() {
+  const customModels = Storage.getCustomModels();
+  const customCurrencies = Storage.getCustomCurrencies();
+  const data = {
+    version: 1,
+    models: customModels,
+    currencies: customCurrencies,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `tokenlens_backup_${new Date().toISOString().split("T")[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  Renderer.toast("导出成功", "success");
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      let importedModels = 0;
+      let importedCurrencies = 0;
+
+      // Handle raw models array (old format) or the new unified format
+      const modelsToImport = Array.isArray(data) ? data : (data.models || []);
+      const currenciesToImport = data.currencies || [];
+
+      modelsToImport.forEach(model => {
+        if (model.name && model.provider && model.pricing) {
+          Storage.saveCustomModel(model);
+          importedModels++;
+        }
+      });
+
+      currenciesToImport.forEach(currency => {
+        if (currency.code && currency.name && currency.toCny !== undefined) {
+          Storage.saveCustomCurrency(currency);
+          importedCurrencies++;
+        }
+      });
+
+      refreshAllModels();
+      refreshAllCurrencies();
+      Renderer.renderModelList(AppState.allModels, AppState.selectedModelId, AppState.searchQuery);
+      triggerCalculate();
+      
+      Renderer.toast(`成功导入 ${importedModels} 个模型，${importedCurrencies} 个币种`, "success");
+    } catch (err) {
+      Renderer.toast("导入失败：文件格式错误", "error");
+    }
+    // reset input
+    event.target.value = "";
+  };
+  reader.readAsText(file);
 }
 
 // ═══════════ Init ═══════════

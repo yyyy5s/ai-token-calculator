@@ -58,10 +58,19 @@
           <i data-lucide="layers"></i>
           模型库
         </h2>
-        <button class="btn btn--primary btn--sm" id="addModelBtn">
-          <i data-lucide="plus"></i>
-          添加
-        </button>
+        <div style="display:flex; gap:4px;">
+          <input type="file" id="importFileInput" accept=".json" style="display:none" />
+          <button class="icon-btn" id="importBtn" title="导入配置">
+            <i data-lucide="download"></i>
+          </button>
+          <button class="icon-btn" id="exportBtn" title="导出配置">
+            <i data-lucide="upload"></i>
+          </button>
+          <button class="btn btn--primary btn--sm" id="addModelBtn">
+            <i data-lucide="plus"></i>
+            添加
+          </button>
+        </div>
       </div>
 
       <div class="sidebar__search">
@@ -113,15 +122,29 @@
 
       <!-- Params -->
       <section class="card params-card" id="paramsCard">
-        <h3 class="card__title">
-          <i data-lucide="sliders-horizontal"></i>
-          输入参数
-        </h3>
-        <div class="params-grid">
+        <div class="params-card__header">
+          <h3 class="card__title" style="margin-bottom:0;">
+            <i data-lucide="sliders-horizontal"></i>
+            输入参数
+          </h3>
+          <div class="mode-switch" id="modeSwitch">
+            <button class="mode-switch__btn mode-switch__btn--active" data-mode="single">
+              <i data-lucide="zap"></i>
+              单次算总量
+            </button>
+            <button class="mode-switch__btn" data-mode="total">
+              <i data-lucide="bar-chart-2"></i>
+              总量算单次
+            </button>
+          </div>
+        </div>
+
+        <!-- ── 单次模式字段 ── -->
+        <div class="params-grid" id="singleModeFields">
           <div class="param-item">
             <label class="param-label" for="inputTokens">
               单次输入 Token
-              <span class="param-hint">含上下文</span>
+              <span class="param-hint">含上下文，请填全额(如30000)</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="inputTokens" class="param-input" value="30000" min="0" step="100" />
@@ -131,20 +154,104 @@
           <div class="param-item">
             <label class="param-label" for="outputTokens">
               单次输出 Token
+              <span class="param-hint">请填全额(如1200)</span>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="outputTokens" class="param-input" value="1200" min="0" step="100" />
               <span class="param-unit">tokens</span>
             </div>
           </div>
+        </div>
+
+        <!-- ── 总量模式字段 ── -->
+        <div class="params-grid" id="totalModeFields" style="display:none;">
           <div class="param-item">
+            <label class="param-label" for="totalCachedTokens">
+              总输入命中 Token
+              <span class="param-hint">请填全额</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="totalCachedTokens" class="param-input" value="0" min="0" step="100" />
+              <span class="param-unit">tokens</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="totalUncachedTokens">
+              总输入未命中 Token
+              <span class="param-hint">请填全额</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="totalUncachedTokens" class="param-input" value="0" min="0" step="100" />
+              <span class="param-unit">tokens</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="totalOutputTokens">
+              总输出 Token
+              <span class="param-hint">请填全额</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="totalOutputTokens" class="param-input" value="0" min="0" step="100" />
+              <span class="param-unit">tokens</span>
+            </div>
+          </div>
+          <div class="param-item">
+            <label class="param-label" for="totalCalls">
+              调用次数
+              <span class="param-hint">用于算出单次均值</span>
+            </label>
+            <div class="param-input-wrap">
+              <input type="number" id="totalCalls" class="param-input" value="1" min="1" step="1" />
+              <span class="param-unit">次</span>
+            </div>
+          </div>
+          <!-- 计算结果展示 -->
+          <div class="param-item param-item--computed" id="totalModeComputed" style="grid-column: 1 / -1;">
+            <div class="computed-summary">
+              <div class="computed-summary__item">
+                <span class="computed-summary__label">单次输入</span>
+                <span class="computed-summary__value" id="computedInputPerCall">—</span>
+              </div>
+              <div class="computed-summary__item">
+                <span class="computed-summary__label">单次输出</span>
+                <span class="computed-summary__value" id="computedOutputPerCall">—</span>
+              </div>
+              <div class="computed-summary__item">
+                <span class="computed-summary__label">缓存命中率</span>
+                <span class="computed-summary__value" id="computedCacheRate">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 共用参数（缓存命中率、每日调用、汇率） ── -->
+        <div class="params-grid params-grid--common" id="commonFields">
+          <div class="param-item" id="cacheHitRateItem">
             <label class="param-label" for="cacheHitRate">
               缓存命中率
               <span class="param-hint">0% = 不使用缓存</span>
+              <button class="cache-calc-toggle" id="cacheCalcToggle" type="button" title="从命中/未命中 Token 计算">
+                <i data-lucide="calculator"></i>
+              </button>
             </label>
             <div class="param-input-wrap">
               <input type="number" id="cacheHitRate" class="param-input" value="20" min="0" max="100" step="5" />
               <span class="param-unit">%</span>
+            </div>
+            <!-- 缓存计算器展开区 -->
+            <div class="cache-calc" id="cacheCalcPanel" style="display:none;">
+              <div class="cache-calc__row">
+                <label class="cache-calc__label">命中 Token</label>
+                <input type="number" id="calcCacheHit" class="cache-calc__input" placeholder="566528" min="0" />
+              </div>
+              <div class="cache-calc__row">
+                <label class="cache-calc__label">未命中 Token</label>
+                <input type="number" id="calcCacheMiss" class="cache-calc__input" placeholder="382331" min="0" />
+              </div>
+              <div class="cache-calc__result">
+                <span>→ 命中率：<strong id="calcCacheResult">—</strong></span>
+                <button class="btn btn--primary btn--sm" id="applyCacheRateBtn" type="button">应用</button>
+              </div>
             </div>
           </div>
           <div class="param-item">
@@ -262,7 +369,9 @@
             <label for="fm-type">定价类型 *</label>
             <select id="fm-type">
               <option value="standard">标准定价（固定单价）</option>
-              <option value="tiered_output">阶梯定价（按输出量）</option>
+              <option value="tiered_input">阶梯定价（仅输入）</option>
+              <option value="tiered_output">阶梯定价（仅输出）</option>
+              <option value="tiered_both">阶梯定价（输入+输出）</option>
             </select>
           </div>
         </div>
@@ -286,12 +395,12 @@
           </div>
         </div>
 
-        <!-- Tiered pricing -->
-        <div class="form-section" id="fm-tier-section" style="display:none;">
-          <h4 class="form-section__title">阶梯价格规则（/ 百万 tokens）</h4>
+        <!-- Tiered Output pricing (输出阶梯) -->
+        <div class="form-section" id="fm-tier-output-section" style="display:none;">
+          <h4 class="form-section__title">输出阶梯价格（/ 百万 tokens）</h4>
           <div class="form-row">
             <div class="form-item">
-              <label for="fm-tier-input">输入成本</label>
+              <label for="fm-tier-input">输入成本（固定）</label>
               <input type="number" id="fm-tier-input" placeholder="0.00" min="0" step="0.001" />
             </div>
             <div class="form-item">
@@ -299,10 +408,46 @@
               <input type="number" id="fm-tier-cacheHit" placeholder="0.00" min="0" step="0.001" />
             </div>
           </div>
-          <div id="fm-tier-rows"></div>
-          <button type="button" class="btn btn--ghost btn--sm" id="addTierRowBtn" style="margin-top:8px;">
+          <p class="form-hint">输出阶梯档位（上限值请填全额，如 128000；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <div id="fm-tier-output-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-output-rows" style="margin-top:8px;">
             <i data-lucide="plus"></i>
-            添加档位
+            添加输出档位
+          </button>
+        </div>
+
+        <!-- Tiered Input pricing (输入阶梯) -->
+        <div class="form-section" id="fm-tier-input-section" style="display:none;">
+          <h4 class="form-section__title">输入阶梯价格（/ 百万 tokens）</h4>
+          <div class="form-row">
+            <div class="form-item">
+              <label for="fm-tier-output-fixed">输出成本（固定）</label>
+              <input type="number" id="fm-tier-output-fixed" placeholder="0.00" min="0" step="0.001" />
+            </div>
+          </div>
+          <p class="form-hint">输入阶梯档位（上限值请填全额；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <div id="fm-tier-input-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-input-rows" data-tier-type="input" style="margin-top:8px;">
+            <i data-lucide="plus"></i>
+            添加输入档位
+          </button>
+        </div>
+
+        <!-- Tiered Both pricing (输入+输出阶梯) -->
+        <div class="form-section" id="fm-tier-both-section" style="display:none;">
+          <h4 class="form-section__title">输入+输出阶梯价格（/ 百万 tokens）</h4>
+          <p class="form-hint">输入阶梯档位（上限值请填全额；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <div id="fm-tier-both-input-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-both-input-rows" data-tier-type="input" style="margin-top:8px;">
+            <i data-lucide="plus"></i>
+            添加输入档位
+          </button>
+          <div style="margin-top:12px;"></div>
+          <p class="form-hint">输出阶梯档位（上限值请填全额；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <div id="fm-tier-both-output-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-both-output-rows" style="margin-top:8px;">
+            <i data-lucide="plus"></i>
+            添加输出档位
           </button>
         </div>
 

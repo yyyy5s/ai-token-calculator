@@ -5,11 +5,13 @@
 //
 //  维护说明：
 //    - currency: "USD" | "CNY" | 其他（需在 BUILTIN_CURRENCIES 中定义）
-//    - type: "standard" | "tiered_output"
+//    - type: "standard" | "tiered_input" | "tiered_output" | "tiered_both"
 //    - 所有价格单位：该币种 / 百万 tokens (per 1M tokens)
 //    - cacheHit 为 null 表示该模型不支持缓存
-//    - tiered_output 的 outputTiers 按 maxOutputTokens 升序排列
-//      最后一档 maxOutputTokens 设为 Infinity
+//    - tiered_output 的 outputTiers 按 maxOutputTokens 升序，最后一档设为 Infinity
+//    - tiered_input 的 inputTiers 按 maxInputTokens 升序，每档可含独立 cacheHit
+//    - tiered_both 同时含 inputTiers 和 outputTiers
+//    - 注意：maxInputTokens / maxOutputTokens 等阈值的单位是【个 Token】全额，不是 K 或 M！例如 128K 应写为 128000。
 // ═══════════════════════════════════════════════════════════════
 
 window.BUILTIN_CURRENCIES = [
@@ -188,7 +190,7 @@ window.BUILTIN_MODELS = [
       input: 1.25,
       cacheHit: 0.31,
       outputTiers: [
-        { maxOutputTokens: 200,      price: 5.00  },
+        { maxOutputTokens: 200000,   price: 5.00  },
         { maxOutputTokens: Infinity, price: 10.00 },
       ]
     }
@@ -203,7 +205,7 @@ window.BUILTIN_MODELS = [
       input: 0.15,
       cacheHit: 0.0375,
       outputTiers: [
-        { maxOutputTokens: 200,      price: 0.60 },
+        { maxOutputTokens: 200000,   price: 0.60 },
         { maxOutputTokens: Infinity, price: 3.50 },
       ]
     }
@@ -326,7 +328,7 @@ window.BUILTIN_MODELS = [
       input: 0.80,
       cacheHit: null,
       outputTiers: [
-        { maxOutputTokens: 200,      price: 2.00 },
+        { maxOutputTokens: 200000,   price: 2.00 },
         { maxOutputTokens: Infinity, price: 8.00 },
       ]
     }
