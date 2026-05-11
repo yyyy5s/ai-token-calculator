@@ -4,34 +4,108 @@
 const Calculator = (() => {
 
   /**
-   * Resolve the output price from outputTiers based on outputTokens.
-   * Falls back to pricing.output for non-tiered output types.
+   * Find the first tier whose threshold is >= tokens.
+   * Falls back to the last tier (highest threshold, usually Infinity).
    */
-  function resolveOutputPrice(pricing, outputTokens) {
-    if (pricing.outputTiers) {
-      const tier = pricing.outputTiers.find(t => outputTokens <= t.maxOutputTokens);
-      return tier ? tier.price : pricing.outputTiers.at(-1).price;
-    }
-    return pricing.output;
+  function findTier(tiers, tokens, thresholdKey) {
+    if (!Array.isArray(tiers) || tiers.length === 0) return null;
+    return tiers.find(t => tokens <= t[thresholdKey]) || tiers.at(-1);
   }
 
   /**
-   * Resolve the input price (and cacheHit price) from inputTiers based on inputTokens.
-   * Falls back to pricing.input / pricing.cacheHit for non-tiered input types.
+   * Resolve effective per-million prices for the current usage.
+   *
+   * Supported pricing.type values:
+   *
+   *  • "standard"
+   *      Flat: { input, output, cacheHit }
+   *
+   *  • "tiered_by_input"   ← Gemini 2.5 / Doubao 1.5 Pro 等
+   *      输入 Token 数量决定整个档位（input / output / cacheHit 全部按档位走）。
+   *      tiers: [{ maxInputTokens, input, output, cacheHit }]
+   *
+   *  • "tiered_by_output"
+   *      输出 Token 数量决定整个档位（少见，但保留以备其他厂商使用）。
+   *      tiers: [{ maxOutputTokens, input, output, cacheHit }]
+   *
+   *  • "tiered_input"       (legacy)
+   *      仅 input 价随输入 Token 阶梯变化，output 固定。
+   *      inputTiers: [{ maxInputTokens, price, cacheHit }], output, (cacheHit)
+   *
+   *  • "tiered_output"      (legacy)
+   *      仅 output 价随输出 Token 阶梯变化，input 固定。
+   *      outputTiers: [{ maxOutputTokens, price }], input, (cacheHit)
+   *
+   *  • "tiered_both"        (legacy)
+   *      input 和 output 各自独立阶梯。
+   *      inputTiers + outputTiers
+   *
+   * 返回 { inputPrice, outputPrice, cacheHitPrice, activeInputTier?, activeOutputTier? }
    */
-  function resolveInputPrice(pricing, inputTokens) {
-    if (pricing.inputTiers) {
-      const tier = pricing.inputTiers.find(t => inputTokens <= t.maxInputTokens);
-      const matched = tier || pricing.inputTiers.at(-1);
-      return {
-        inputPrice: matched.price,
-        cacheHitPrice: matched.cacheHit ?? matched.price,
-      };
+  function resolvePrices(pricing, inputTokens, outputTokens) {
+    switch (pricing.type) {
+
+      case "tiered_by_input": {
+        const tier = findTier(pricing.tiers, inputTokens, "maxInputTokens") || {};
+        return {
+          inputPrice:    tier.input    ?? 0,
+          outputPrice:   tier.output   ?? 0,
+          cacheHitPrice: tier.cacheHit ?? tier.input ?? 0,
+          activeInputTier: tier,
+        };
+      }
+
+      case "tiered_by_output": {
+        const tier = findTier(pricing.tiers, outputTokens, "maxOutputTokens") || {};
+        return {
+          inputPrice:    tier.input    ?? 0,
+          outputPrice:   tier.output   ?? 0,
+          cacheHitPrice: tier.cacheHit ?? tier.input ?? 0,
+          activeOutputTier: tier,
+        };
+      }
+
+      case "tiered_input": {
+        const tier = findTier(pricing.inputTiers, inputTokens, "maxInputTokens") || {};
+        return {
+          inputPrice:    tier.price ?? 0,
+          outputPrice:   pricing.output ?? 0,
+          cacheHitPrice: tier.cacheHit ?? tier.price ?? 0,
+          activeInputTier: tier,
+        };
+      }
+
+      case "tiered_output": {
+        const tier = findTier(pricing.outputTiers, outputTokens, "maxOutputTokens") || {};
+        return {
+          inputPrice:    pricing.input ?? 0,
+          outputPrice:   tier.price ?? 0,
+          cacheHitPrice: pricing.cacheHit ?? pricing.input ?? 0,
+          activeOutputTier: tier,
+        };
+      }
+
+      case "tiered_both": {
+        const inTier  = findTier(pricing.inputTiers,  inputTokens,  "maxInputTokens")  || {};
+        const outTier = findTier(pricing.outputTiers, outputTokens, "maxOutputTokens") || {};
+        return {
+          inputPrice:    inTier.price ?? 0,
+          outputPrice:   outTier.price ?? 0,
+          cacheHitPrice: inTier.cacheHit ?? inTier.price ?? 0,
+          activeInputTier:  inTier,
+          activeOutputTier: outTier,
+        };
+      }
+
+      case "standard":
+      default: {
+        return {
+          inputPrice:    pricing.input ?? 0,
+          outputPrice:   pricing.output ?? 0,
+          cacheHitPrice: pricing.cacheHit ?? pricing.input ?? 0,
+        };
+      }
     }
-    return {
-      inputPrice: pricing.input,
-      cacheHitPrice: pricing.cacheHit ?? pricing.input,
-    };
   }
 
   function calculate(params, pricing, modelCurrency, allCurrencies) {
@@ -40,17 +114,14 @@ const Calculator = (() => {
     const cachedTokens    = inputTokens * cacheHitRate;
     const nonCachedTokens = inputTokens * (1 - cacheHitRate);
 
-    // Resolve input pricing (handles standard, tiered_input, tiered_both)
-    const { inputPrice: inputPricePerM, cacheHitPrice: cachePricePerM } =
-      resolveInputPrice(pricing, inputTokens);
+    const { inputPrice, outputPrice, cacheHitPrice } =
+      resolvePrices(pricing, inputTokens, outputTokens);
 
-    const nonCachedCost = (nonCachedTokens / 1_000_000) * inputPricePerM;
-    const cachedCost    = (cachedTokens    / 1_000_000) * cachePricePerM;
+    const nonCachedCost = (nonCachedTokens / 1_000_000) * inputPrice;
+    const cachedCost    = (cachedTokens    / 1_000_000) * cacheHitPrice;
     const inputCost     = nonCachedCost + cachedCost;
 
-    // Resolve output pricing (handles standard, tiered_output, tiered_both)
-    const outputPricePerM = resolveOutputPrice(pricing, outputTokens);
-    const outputCost      = (outputTokens / 1_000_000) * outputPricePerM;
+    const outputCost = (outputTokens / 1_000_000) * outputPrice;
 
     const singleCostNative = inputCost + outputCost;
 
@@ -90,8 +161,9 @@ const Calculator = (() => {
         outputCost,
         cachedTokens,
         nonCachedTokens,
-        outputPricePerM,
-        inputPricePerM,
+        inputPricePerM:    inputPrice,
+        outputPricePerM:   outputPrice,
+        cacheHitPricePerM: cacheHitPrice,
         inputPercent,
         outputPercent,
       }
@@ -107,5 +179,5 @@ const Calculator = (() => {
       .sort((a, b) => a.result.singleCostCNY - b.result.singleCostCNY);
   }
 
-  return { calculate, calculateBatch, resolveOutputPrice, resolveInputPrice };
+  return { calculate, calculateBatch, resolvePrices };
 })();

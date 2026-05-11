@@ -47,21 +47,19 @@ function getParams() {
 function refreshAllModels() {
   const custom = Storage.getCustomModels();
   // Restore Infinity in tiered models from localStorage (JSON serializes Infinity as null)
+  const restoreInf = (arr, key) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(t => {
+      if (t[key] === null || t[key] === undefined) t[key] = Infinity;
+    });
+  };
   custom.forEach(m => {
-    if (m.pricing?.outputTiers) {
-      m.pricing.outputTiers.forEach(t => {
-        if (t.maxOutputTokens === null || t.maxOutputTokens === undefined) {
-          t.maxOutputTokens = Infinity;
-        }
-      });
-    }
-    if (m.pricing?.inputTiers) {
-      m.pricing.inputTiers.forEach(t => {
-        if (t.maxInputTokens === null || t.maxInputTokens === undefined) {
-          t.maxInputTokens = Infinity;
-        }
-      });
-    }
+    const p = m.pricing;
+    if (!p) return;
+    restoreInf(p.outputTiers, "maxOutputTokens");
+    restoreInf(p.inputTiers,  "maxInputTokens");
+    if (p.type === "tiered_by_input")  restoreInf(p.tiers, "maxInputTokens");
+    if (p.type === "tiered_by_output") restoreInf(p.tiers, "maxOutputTokens");
   });
   AppState.allModels = [...window.BUILTIN_MODELS, ...custom];
 }
@@ -208,7 +206,11 @@ function openModelModal(existingModel = null) {
   title.textContent = existingModel ? "编辑模型" : "添加自定义模型";
   form.reset();
   // Clear all tier row containers
-  ["fm-tier-output-rows", "fm-tier-input-rows", "fm-tier-both-input-rows", "fm-tier-both-output-rows"].forEach(id => {
+  [
+    "fm-tier-output-rows", "fm-tier-input-rows",
+    "fm-tier-both-input-rows", "fm-tier-both-output-rows",
+    "fm-tier-by-input-rows", "fm-tier-by-output-rows",
+  ].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = "";
   });
@@ -231,6 +233,18 @@ function openModelModal(existingModel = null) {
       document.getElementById("fm-input").value    = p.input || "";
       document.getElementById("fm-cacheHit").value = p.cacheHit ?? "";
       document.getElementById("fm-output").value   = p.output || "";
+
+    } else if (p.type === "tiered_by_input") {
+      (p.tiers || []).forEach(tier => {
+        const maxLabel = tier.maxInputTokens === Infinity ? "" : tier.maxInputTokens;
+        addTierRow("fm-tier-by-input-rows", "by-input", maxLabel, tier.input, tier.cacheHit, tier.output);
+      });
+
+    } else if (p.type === "tiered_by_output") {
+      (p.tiers || []).forEach(tier => {
+        const maxLabel = tier.maxOutputTokens === Infinity ? "" : tier.maxOutputTokens;
+        addTierRow("fm-tier-by-output-rows", "by-output", maxLabel, tier.input, tier.cacheHit, tier.output);
+      });
 
     } else if (p.type === "tiered_output") {
       document.getElementById("fm-tier-input").value    = p.input || "";
@@ -272,81 +286,131 @@ function closeModelModal() {
 }
 
 function togglePricingSection(type) {
-  document.getElementById("fm-standard-section").style.display = type === "standard" ? "block" : "none";
-  document.getElementById("fm-tier-output-section").style.display = type === "tiered_output" ? "block" : "none";
-  document.getElementById("fm-tier-input-section").style.display = type === "tiered_input" ? "block" : "none";
-  document.getElementById("fm-tier-both-section").style.display = type === "tiered_both" ? "block" : "none";
+  const mapping = {
+    "standard":         "fm-standard-section",
+    "tiered_by_input":  "fm-tier-by-input-section",
+    "tiered_by_output": "fm-tier-by-output-section",
+    "tiered_output":    "fm-tier-output-section",
+    "tiered_input":     "fm-tier-input-section",
+    "tiered_both":      "fm-tier-both-section",
+  };
+  Object.entries(mapping).forEach(([t, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = type === t ? "block" : "none";
+  });
 }
 
 let tierRowCounter = 0;
 /**
  * Add a tier row to the specified container.
  * @param {string} containerId - ID of the container div
- * @param {"output"|"input"} tierType - whether this is an output or input tier row
- * @param {string|number} maxVal - max token threshold
- * @param {string|number} price - price per million tokens
- * @param {string|number|null} cacheHitVal - cache hit price (only for input tiers)
+ * @param {"output"|"input"|"by-input"|"by-output"} tierType
+ *        - "output" / "input"      : legacy single-price tier (with optional cacheHit for input)
+ *        - "by-input" / "by-output": full tier with input + output + cacheHit on the same row
+ * @param {string|number} maxVal     - max token threshold
+ * @param {string|number} priceA     - legacy: tier.price; new: tier.input price
+ * @param {string|number|null} cacheHitVal - cacheHit price
+ * @param {string|number} priceB     - new types only: tier.output price
  */
-function addTierRow(containerId, tierType = "output", maxVal = "", price = "", cacheHitVal = null) {
+function addTierRow(containerId, tierType = "output", maxVal = "", priceA = "", cacheHitVal = null, priceB = "") {
   const container = document.getElementById(containerId);
   const idx = tierRowCounter++;
   const row = document.createElement("div");
   row.className = "tier-input-row";
+  row.dataset.tierType = tierType;
 
-  const label = tierType === "input" ? "输入" : "输出";
-  const maxKey = tierType === "input" ? "maxInputTokens" : "maxOutputTokens";
-
-  let cacheHitHtml = "";
-  if (tierType === "input") {
-    cacheHitHtml = `
+  // Full-tier rows: by-input / by-output (Gemini style — one row carries input + output + cacheHit)
+  if (tierType === "by-input" || tierType === "by-output") {
+    const thresholdLabel = tierType === "by-input" ? "输入" : "输出";
+    row.innerHTML = `
+      <span>${thresholdLabel} ≤</span>
+      <input type="text"   name="tier-max-${idx}"    placeholder="留空=∞" value="${maxVal}" style="width:84px;" />
+      <span>tokens →</span>
+      <span>输入</span>
+      <input type="number" name="tier-input-${idx}"  placeholder="1.25"   min="0" step="0.001" value="${priceA}" style="width:70px;" />
+      <span>输出</span>
+      <input type="number" name="tier-output-${idx}" placeholder="10.00"  min="0" step="0.001" value="${priceB}" style="width:70px;" />
       <span>缓存</span>
-      <input type="number" name="tier-cache-${idx}" placeholder="0.31" min="0" step="0.001" value="${cacheHitVal ?? ""}" style="width:70px;" />`;
+      <input type="number" name="tier-cache-${idx}"  placeholder="0.31"   min="0" step="0.001" value="${cacheHitVal ?? ""}" style="width:70px;" />
+      <span>/ M</span>
+      <button type="button" class="icon-btn icon-btn--danger tier-remove-btn">
+        <i data-lucide="x"></i>
+      </button>`;
+  } else {
+    // Legacy single-price rows
+    const label = tierType === "input" ? "输入" : "输出";
+    let cacheHitHtml = "";
+    if (tierType === "input") {
+      cacheHitHtml = `
+        <span>缓存</span>
+        <input type="number" name="tier-cache-${idx}" placeholder="0.31" min="0" step="0.001" value="${cacheHitVal ?? ""}" style="width:70px;" />`;
+    }
+    row.innerHTML = `
+      <span>${label} ≤</span>
+      <input type="text"   name="tier-max-${idx}"   placeholder="留空=∞" value="${maxVal}" style="width:84px;" />
+      <span>tokens →</span>
+      <input type="number" name="tier-price-${idx}" placeholder="5.00"   min="0" step="0.001" value="${priceA}" style="width:80px;" />
+      <span>/ M</span>
+      ${cacheHitHtml}
+      <button type="button" class="icon-btn icon-btn--danger tier-remove-btn">
+        <i data-lucide="x"></i>
+      </button>`;
   }
 
-  row.innerHTML = `
-    <span>${label} ≤</span>
-    <input type="text" name="tier-max-${idx}" placeholder="留空=无上限" value="${maxVal}" style="width:84px;" />
-    <span>tokens →</span>
-    <input type="number" name="tier-price-${idx}" placeholder="5.00" min="0" step="0.001" value="${price}" style="width:80px;" />
-    <span>/ M</span>
-    ${cacheHitHtml}
-    <button type="button" class="icon-btn icon-btn--danger tier-remove-btn">
-      <i data-lucide="x"></i>
-    </button>`;
   container.appendChild(row);
   lucide.createIcons();
-
   row.querySelector(".tier-remove-btn").addEventListener("click", () => row.remove());
 }
 
-/** Parse tier rows from a container into an array of tier objects */
+/**
+ * Parse tier rows from a container into an array of tier objects.
+ * @param {string} containerId
+ * @param {"input"|"output"|"by-input"|"by-output"} tierType
+ */
 function parseTierRows(containerId, tierType) {
   const rows = document.querySelectorAll(`#${containerId} .tier-input-row`);
   const tiers = [];
+
+  const parseMax = (str) =>
+    (!str || str === "∞" || str.toLowerCase() === "infinity")
+      ? Infinity
+      : parseFloat(str);
+
   rows.forEach(row => {
     const inputs = row.querySelectorAll("input");
     const maxStr = inputs[0]?.value?.trim();
-    const price  = parseFloat(inputs[1]?.value);
-    if (!isNaN(price)) {
-      const maxVal = (!maxStr || maxStr === "∞" || maxStr.toLowerCase() === "infinity")
-        ? Infinity
-        : parseFloat(maxStr);
-      if (!isNaN(maxVal)) {
-        if (tierType === "input") {
-          const cacheHit = inputs[2] ? (inputs[2].value ? parseFloat(inputs[2].value) : null) : null;
-          tiers.push({ maxInputTokens: maxVal, price, cacheHit });
-        } else {
-          tiers.push({ maxOutputTokens: maxVal, price });
-        }
+    const maxVal = parseMax(maxStr);
+    if (isNaN(maxVal)) return;
+
+    if (tierType === "by-input" || tierType === "by-output") {
+      // Full-tier rows: [max, input, output, cacheHit]
+      const inputPrice  = parseFloat(inputs[1]?.value);
+      const outputPrice = parseFloat(inputs[2]?.value);
+      const cacheStr    = inputs[3]?.value?.trim();
+      const cacheHit    = cacheStr ? parseFloat(cacheStr) : null;
+      if (isNaN(inputPrice) || isNaN(outputPrice)) return;
+      const tier = { input: inputPrice, output: outputPrice, cacheHit };
+      if (tierType === "by-input") tier.maxInputTokens  = maxVal;
+      else                         tier.maxOutputTokens = maxVal;
+      tiers.push(tier);
+    } else {
+      // Legacy single-price rows
+      const price = parseFloat(inputs[1]?.value);
+      if (isNaN(price)) return;
+      if (tierType === "input") {
+        const cacheHit = inputs[2] ? (inputs[2].value ? parseFloat(inputs[2].value) : null) : null;
+        tiers.push({ maxInputTokens: maxVal, price, cacheHit });
+      } else {
+        tiers.push({ maxOutputTokens: maxVal, price });
       }
     }
   });
-  // Sort tiers
-  if (tierType === "input") {
-    tiers.sort((a, b) => a.maxInputTokens - b.maxInputTokens);
-  } else {
-    tiers.sort((a, b) => a.maxOutputTokens - b.maxOutputTokens);
-  }
+
+  // Sort ascending by threshold
+  const sortKey = (tierType === "input" || tierType === "by-input")
+    ? "maxInputTokens"
+    : "maxOutputTokens";
+  tiers.sort((a, b) => a[sortKey] - b[sortKey]);
   return tiers;
 }
 
@@ -372,6 +436,16 @@ function handleModelFormSubmit(e) {
       output:   parseFloat(document.getElementById("fm-output").value)   || 0,
       cacheHit: document.getElementById("fm-cacheHit").value ? parseFloat(document.getElementById("fm-cacheHit").value) : null,
     };
+  } else if (type === "tiered_by_input") {
+    pricing = {
+      type: "tiered_by_input",
+      tiers: parseTierRows("fm-tier-by-input-rows", "by-input"),
+    };
+  } else if (type === "tiered_by_output") {
+    pricing = {
+      type: "tiered_by_output",
+      tiers: parseTierRows("fm-tier-by-output-rows", "by-output"),
+    };
   } else if (type === "tiered_output") {
     pricing = {
       type: "tiered_output",
@@ -391,6 +465,15 @@ function handleModelFormSubmit(e) {
       inputTiers:  parseTierRows("fm-tier-both-input-rows", "input"),
       outputTiers: parseTierRows("fm-tier-both-output-rows", "output"),
     };
+  }
+
+  // Validate that tiered types have at least one tier
+  if (type.startsWith("tiered_")) {
+    const tierArrays = [pricing.tiers, pricing.inputTiers, pricing.outputTiers].filter(Boolean);
+    if (tierArrays.every(arr => !arr.length)) {
+      Renderer.toast("请至少添加一个阶梯档位", "error");
+      return;
+    }
   }
 
   const form   = document.getElementById("modelForm");

@@ -95,77 +95,106 @@ const Renderer = (() => {
   }
 
   // ── Tier Card ──
+  // Renders the "current tier" panel for any non-standard pricing model.
+  // Each render branch is keyed to the pricing.type so the UI labels match
+  // exactly what the calculator is using.
   function renderTierCard(pricing, inputTokens, outputTokens) {
     const card = document.getElementById("tierCard");
     const rows = document.getElementById("tierCardRows");
 
-    if (pricing.type === "standard") {
+    if (!pricing || pricing.type === "standard") {
       card.style.display = "none";
       return;
     }
 
     card.style.display = "block";
+
+    // Build "range label" for a tier given its index, threshold key, and label prefix
+    const rangeLabel = (tier, idx, list, key, prefix) => {
+      const cur  = tier[key];
+      const prev = idx > 0 ? list[idx - 1][key] : 0;
+      if (cur === Infinity) return `${prefix} > ${prev.toLocaleString()} tokens`;
+      if (idx === 0)        return `${prefix} ≤ ${cur.toLocaleString()} tokens`;
+      return `${prefix} ${(prev + 1).toLocaleString()} ~ ${cur.toLocaleString()} tokens`;
+    };
+
+    const isInRange = (tier, idx, list, key, tokens) => {
+      const prev = idx > 0 ? list[idx - 1][key] : 0;
+      return tokens <= tier[key] && (idx === 0 || tokens > prev);
+    };
+
     let html = `
       <div class="tier-table-header" style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); padding: 0 12px 6px; border-bottom: 1px dashed rgba(245,158,11,0.2); margin-bottom: 8px;">
-        <span>Token 用量范围</span>
+        <span>Token 用量范围（决定档位的那一侧）</span>
         <span>单价（/ 百万 tokens）</span>
       </div>
     `;
 
-    // Render input tiers (for tiered_input / tiered_both)
-    if (pricing.inputTiers) {
-      html += `<div class="tier-section-label">输入阶梯：</div>`;
-      html += pricing.inputTiers.map((tier, idx) => {
-        const prevMax = idx > 0 ? pricing.inputTiers[idx - 1].maxInputTokens : 0;
-        const isActive = inputTokens <= tier.maxInputTokens &&
-          (idx === 0 || inputTokens > prevMax);
+    // ── tiered_by_input / tiered_by_output ──
+    //   每档同时给出 input / output / cacheHit 三个单价
+    if (pricing.type === "tiered_by_input" || pricing.type === "tiered_by_output") {
+      const byInput = pricing.type === "tiered_by_input";
+      const key     = byInput ? "maxInputTokens"  : "maxOutputTokens";
+      const prefix  = byInput ? "输入"            : "输出";
+      const tokens  = byInput ? inputTokens       : outputTokens;
+      const list    = pricing.tiers || [];
 
-        const label = tier.maxInputTokens === Infinity
-          ? `输入 > ${prevMax.toLocaleString()} tokens`
-          : idx === 0
-            ? `输入 ≤ ${tier.maxInputTokens.toLocaleString()} tokens`
-            : `输入 ${(prevMax + 1).toLocaleString()} ~ ${tier.maxInputTokens.toLocaleString()} tokens`;
-
-        const cacheInfo = tier.cacheHit != null ? ` · 缓存 ${tier.cacheHit.toFixed(3)}` : '';
-
+      html += `<div class="tier-section-label">${byInput ? "按输入长度分档" : "按输出长度分档"}（input / output / cache 一起跟随）：</div>`;
+      html += list.map((tier, idx) => {
+        const active = isInRange(tier, idx, list, key, tokens);
+        const label  = rangeLabel(tier, idx, list, key, prefix);
+        const cache  = tier.cacheHit != null ? ` · 缓存 ${tier.cacheHit.toFixed(3)}` : '';
         return `
-          <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
+          <div class="tier-row ${active ? 'tier-row--active' : ''}">
             <div class="tier-row__label">
-              ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
+              ${active ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
               ${label}
             </div>
             <div class="tier-row__price">
-              ${tier.price.toFixed(2)}${cacheInfo} / M
-              ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
+              输入 ${Number(tier.input ?? 0).toFixed(2)} · 输出 ${Number(tier.output ?? 0).toFixed(2)}${cache} / M
+              ${active ? '<span class="tier-row__current">当前档</span>' : ''}
             </div>
           </div>`;
       }).join('');
     }
 
-    // Render output tiers (for tiered_output / tiered_both)
+    // ── Legacy: tiered_input / tiered_both (inputTiers) ──
+    if (pricing.inputTiers) {
+      html += `<div class="tier-section-label">输入阶梯（由输入 Token 数决定）：</div>`;
+      html += pricing.inputTiers.map((tier, idx) => {
+        const active = isInRange(tier, idx, pricing.inputTiers, "maxInputTokens", inputTokens);
+        const label  = rangeLabel(tier, idx, pricing.inputTiers, "maxInputTokens", "输入");
+        const cache  = tier.cacheHit != null ? ` · 缓存 ${tier.cacheHit.toFixed(3)}` : '';
+        return `
+          <div class="tier-row ${active ? 'tier-row--active' : ''}">
+            <div class="tier-row__label">
+              ${active ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
+              ${label}
+            </div>
+            <div class="tier-row__price">
+              ${tier.price.toFixed(2)}${cache} / M
+              ${active ? '<span class="tier-row__current">当前档</span>' : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Legacy: tiered_output / tiered_both (outputTiers) ──
     if (pricing.outputTiers) {
       if (pricing.inputTiers) html += `<div style="margin-top:8px;"></div>`;
-      html += `<div class="tier-section-label">输出阶梯：</div>`;
+      html += `<div class="tier-section-label">输出阶梯（由输出 Token 数决定）：</div>`;
       html += pricing.outputTiers.map((tier, idx) => {
-        const prevMax = idx > 0 ? pricing.outputTiers[idx - 1].maxOutputTokens : 0;
-        const isActive = outputTokens <= tier.maxOutputTokens &&
-          (idx === 0 || outputTokens > prevMax);
-
-        const label = tier.maxOutputTokens === Infinity
-          ? `输出 > ${prevMax.toLocaleString()} tokens`
-          : idx === 0
-            ? `输出 ≤ ${tier.maxOutputTokens.toLocaleString()} tokens`
-            : `输出 ${(prevMax + 1).toLocaleString()} ~ ${tier.maxOutputTokens.toLocaleString()} tokens`;
-
+        const active = isInRange(tier, idx, pricing.outputTiers, "maxOutputTokens", outputTokens);
+        const label  = rangeLabel(tier, idx, pricing.outputTiers, "maxOutputTokens", "输出");
         return `
-          <div class="tier-row ${isActive ? 'tier-row--active' : ''}">
+          <div class="tier-row ${active ? 'tier-row--active' : ''}">
             <div class="tier-row__label">
-              ${isActive ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
+              ${active ? '<i data-lucide="check-circle"></i>' : '<i data-lucide="circle"></i>'}
               ${label}
             </div>
             <div class="tier-row__price">
               ${tier.price.toFixed(2)} / M tokens
-              ${isActive ? '<span class="tier-row__current">当前档</span>' : ''}
+              ${active ? '<span class="tier-row__current">当前档</span>' : ''}
             </div>
           </div>`;
       }).join('');
@@ -220,8 +249,10 @@ const Renderer = (() => {
     let cacheSupported = true;
     if (pricing.type === "standard" || pricing.type === "tiered_output") {
       cacheSupported = pricing.cacheHit !== null;
+    } else if (pricing.type === "tiered_by_input" || pricing.type === "tiered_by_output") {
+      cacheSupported = (pricing.tiers || []).some(t => t.cacheHit != null);
     } else if (pricing.inputTiers) {
-      cacheSupported = pricing.inputTiers.some(t => t.cacheHit !== null);
+      cacheSupported = pricing.inputTiers.some(t => t.cacheHit != null);
     }
 
     if (!cacheSupported) {
@@ -245,7 +276,10 @@ const Renderer = (() => {
     const el = document.getElementById("resultsBreakdown");
     el.style.display = "flex";
 
-    const { inputCost, outputCost, inputPercent, outputPercent, outputPricePerM } = detail;
+    const { inputCost, outputCost, inputPercent, outputPercent,
+            inputPricePerM, outputPricePerM, cacheHitPricePerM } = detail;
+
+    const fmt = (v) => Number(v ?? 0).toFixed(3);
 
     document.getElementById("breakdownLabels").innerHTML = `
       <div class="breakdown-label">
@@ -259,7 +293,7 @@ const Renderer = (() => {
         <span class="breakdown-label__pct">${outputPercent}%</span>
       </div>
       <div class="breakdown-label breakdown-label--note">
-        <span>实际输出单价：${outputPricePerM.toFixed(3)} / M</span>
+        <span>本档实际单价：输入 ${fmt(inputPricePerM)} · 输出 ${fmt(outputPricePerM)} · 缓存 ${fmt(cacheHitPricePerM)} / M</span>
       </div>`;
 
     // Chart.js may not be loaded yet

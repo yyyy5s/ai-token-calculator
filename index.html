@@ -369,9 +369,11 @@
             <label for="fm-type">定价类型 *</label>
             <select id="fm-type">
               <option value="standard">标准定价（固定单价）</option>
-              <option value="tiered_input">阶梯定价（仅输入）</option>
-              <option value="tiered_output">阶梯定价（仅输出）</option>
-              <option value="tiered_both">阶梯定价（输入+输出）</option>
+              <option value="tiered_by_input">输入长度决定全档价（Gemini 风格：输入/输出/缓存一起跟随档位）</option>
+              <option value="tiered_by_output">输出长度决定全档价（输入/输出/缓存一起跟随档位）</option>
+              <option value="tiered_input">仅输入阶梯（输入随阶梯，输出固定）</option>
+              <option value="tiered_output">仅输出阶梯（输出随阶梯，输入固定）</option>
+              <option value="tiered_both">输入+输出 各自独立阶梯</option>
             </select>
           </div>
         </div>
@@ -395,9 +397,40 @@
           </div>
         </div>
 
+        <!-- Tiered-by-input (Gemini-style): input length determines all prices -->
+        <div class="form-section" id="fm-tier-by-input-section" style="display:none;">
+          <h4 class="form-section__title">按【输入 Token 数】分档（/ 百万 tokens）</h4>
+          <p class="form-hint">
+            档位由<strong>单次输入 Token 总量</strong>决定，每档同时给出输入/输出/缓存三个单价。
+            上限值请填全额（如 200000 表示 200K）；最后一个档位留空则自动视为无上限 ∞。
+          </p>
+          <div id="fm-tier-by-input-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-by-input-rows" data-tier-type="by-input" style="margin-top:8px;">
+            <i data-lucide="plus"></i>
+            添加输入档位
+          </button>
+        </div>
+
+        <!-- Tiered-by-output: output length determines all prices -->
+        <div class="form-section" id="fm-tier-by-output-section" style="display:none;">
+          <h4 class="form-section__title">按【输出 Token 数】分档（/ 百万 tokens）</h4>
+          <p class="form-hint">
+            档位由<strong>单次输出 Token 总量</strong>决定，每档同时给出输入/输出/缓存三个单价。
+            上限值请填全额；最后一个档位留空则自动视为无上限 ∞。
+          </p>
+          <div id="fm-tier-by-output-rows"></div>
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-by-output-rows" data-tier-type="by-output" style="margin-top:8px;">
+            <i data-lucide="plus"></i>
+            添加输出档位
+          </button>
+        </div>
+
         <!-- Tiered Output pricing (输出阶梯) -->
         <div class="form-section" id="fm-tier-output-section" style="display:none;">
-          <h4 class="form-section__title">输出阶梯价格（/ 百万 tokens）</h4>
+          <h4 class="form-section__title">仅输出阶梯价格（/ 百万 tokens）</h4>
+          <p class="form-hint">
+            档位由<strong>输出 Token 数</strong>决定。仅输出价跟档变化，输入与缓存固定。
+          </p>
           <div class="form-row">
             <div class="form-item">
               <label for="fm-tier-input">输入成本（固定）</label>
@@ -408,9 +441,9 @@
               <input type="number" id="fm-tier-cacheHit" placeholder="0.00" min="0" step="0.001" />
             </div>
           </div>
-          <p class="form-hint">输出阶梯档位（上限值请填全额，如 128000；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <p class="form-hint">输出阶梯档位（上限值请填全额，如 200000；最后一档留空 = ∞）：</p>
           <div id="fm-tier-output-rows"></div>
-          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-output-rows" style="margin-top:8px;">
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-output-rows" data-tier-type="output" style="margin-top:8px;">
             <i data-lucide="plus"></i>
             添加输出档位
           </button>
@@ -418,14 +451,17 @@
 
         <!-- Tiered Input pricing (输入阶梯) -->
         <div class="form-section" id="fm-tier-input-section" style="display:none;">
-          <h4 class="form-section__title">输入阶梯价格（/ 百万 tokens）</h4>
+          <h4 class="form-section__title">仅输入阶梯价格（/ 百万 tokens）</h4>
+          <p class="form-hint">
+            档位由<strong>输入 Token 数</strong>决定。仅输入/缓存价跟档变化，输出固定。
+          </p>
           <div class="form-row">
             <div class="form-item">
               <label for="fm-tier-output-fixed">输出成本（固定）</label>
               <input type="number" id="fm-tier-output-fixed" placeholder="0.00" min="0" step="0.001" />
             </div>
           </div>
-          <p class="form-hint">输入阶梯档位（上限值请填全额；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <p class="form-hint">输入阶梯档位（上限值请填全额；最后一档留空 = ∞）：</p>
           <div id="fm-tier-input-rows"></div>
           <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-input-rows" data-tier-type="input" style="margin-top:8px;">
             <i data-lucide="plus"></i>
@@ -433,19 +469,21 @@
           </button>
         </div>
 
-        <!-- Tiered Both pricing (输入+输出阶梯) -->
+        <!-- Tiered Both pricing (输入+输出独立阶梯) -->
         <div class="form-section" id="fm-tier-both-section" style="display:none;">
-          <h4 class="form-section__title">输入+输出阶梯价格（/ 百万 tokens）</h4>
-          <p class="form-hint">输入阶梯档位（上限值请填全额；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <h4 class="form-section__title">输入+输出 独立阶梯（/ 百万 tokens）</h4>
+          <p class="form-hint">
+            输入阶梯档位（上限按输入 Token 数；最后一档留空 = ∞）：
+          </p>
           <div id="fm-tier-both-input-rows"></div>
           <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-both-input-rows" data-tier-type="input" style="margin-top:8px;">
             <i data-lucide="plus"></i>
             添加输入档位
           </button>
           <div style="margin-top:12px;"></div>
-          <p class="form-hint">输出阶梯档位（上限值请填全额；最后一个档位留空则自动视为无上限 ∞）：</p>
+          <p class="form-hint">输出阶梯档位（上限按输出 Token 数；最后一档留空 = ∞）：</p>
           <div id="fm-tier-both-output-rows"></div>
-          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-both-output-rows" style="margin-top:8px;">
+          <button type="button" class="btn btn--ghost btn--sm fm-add-tier-btn" data-tier-target="fm-tier-both-output-rows" data-tier-type="output" style="margin-top:8px;">
             <i data-lucide="plus"></i>
             添加输出档位
           </button>
