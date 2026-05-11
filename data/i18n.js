@@ -154,9 +154,9 @@ window.BUILTIN_TRANSLATIONS = {
     "modal.model.save":            "保存模型",
     "modal.model.tier.row.le":     "{side} ≤",
     "modal.model.tier.row.toks":   "tokens →",
-    "modal.model.tier.row.in":     "输入",
-    "modal.model.tier.row.out":    "输出",
-    "modal.model.tier.row.cache":  "缓存",
+    "modal.model.tier.row.in":     "输入成本",
+    "modal.model.tier.row.out":    "输出成本",
+    "modal.model.tier.row.cache":  "缓存命中",
     "modal.model.tier.row.unit":   "/ M",
     "modal.model.tier.row.empty":  "留空=∞",
 
@@ -193,7 +193,7 @@ window.BUILTIN_TRANSLATIONS = {
     "modal.help.section.extra":      "未直接支持的计费方案",
     "modal.help.extra.body":         '<p>下列方案目前没有专门字段，但通常可以用现有类型组合表达：</p><ul><li><strong>多模态分价</strong>（音频 token 单价 ≠ 文本）：拆成两个独立模型条目分别记录。</li><li><strong>Batch API 50% 折扣</strong>：复制一份模型条目，把 input/output 单价乘 0.5，命名加 "-batch"。</li><li><strong>错峰/夜间折扣</strong>（如 DeepSeek 夜间半价）：同上，建立 "-night" 副本。</li><li><strong>推理 token</strong>（o-系列 / DeepSeek R1）：直接把 reasoning tokens 算进 output 即可，所有厂商都按 output 计费。</li><li><strong>Anthropic cacheWrite</strong>：当前只模拟「缓存命中率」，cacheWrite 一次性写入费用未单独建模——如需精算，可手动上调首次调用的 input 价。</li></ul>',
     "modal.help.section.lang":       "多语言",
-    "modal.help.lang.body":          '<p>顶栏「语言」按钮可切换界面语言。新增语言只需在 <code>data/i18n.js</code> 的 <code>BUILTIN_LANGUAGES</code> 和 <code>BUILTIN_TRANSLATIONS</code> 各加一份记录，无需改动任何主逻辑。</p>',
+    "modal.help.lang.body":          '<p>顶栏「语言」按钮可切换界面语言。点击即可在支持语言之间切换。</p>',
 
     // 右键菜单
     "menu.select":   "选中此模型",
@@ -353,9 +353,9 @@ window.BUILTIN_TRANSLATIONS = {
     "modal.model.save":             "Save",
     "modal.model.tier.row.le":      "{side} ≤",
     "modal.model.tier.row.toks":    "tokens →",
-    "modal.model.tier.row.in":      "in",
-    "modal.model.tier.row.out":     "out",
-    "modal.model.tier.row.cache":   "cache",
+    "modal.model.tier.row.in":      "Input cost",
+    "modal.model.tier.row.out":     "Output cost",
+    "modal.model.tier.row.cache":   "Cache hit",
     "modal.model.tier.row.unit":    "/ M",
     "modal.model.tier.row.empty":   "blank=∞",
 
@@ -388,7 +388,7 @@ window.BUILTIN_TRANSLATIONS = {
     "modal.help.section.extra":      "Schemes not natively supported",
     "modal.help.extra.body":         '<p>The following schemes have no dedicated field, but can be modeled with what we have:</p><ul><li><strong>Multimodal split-rate</strong> (audio token ≠ text): create one model entry per modality.</li><li><strong>Batch API 50% off</strong>: clone the model entry and halve input/output prices; suffix the name with "-batch".</li><li><strong>Off-peak discount</strong> (e.g. DeepSeek night-time half-price): same trick, "-night" suffix.</li><li><strong>Reasoning tokens</strong> (o-series / DeepSeek R1): just count them as output — every provider bills them at the output rate.</li><li><strong>Anthropic cacheWrite</strong>: we only model the <em>cache hit rate</em>; the one-time cache-write premium is not separately modeled. For precision, manually bump the input price on the first call.</li></ul>',
     "modal.help.section.lang":       "Languages",
-    "modal.help.lang.body":          '<p>The picker in the top bar switches the UI. To add a language, append entries to <code>BUILTIN_LANGUAGES</code> and <code>BUILTIN_TRANSLATIONS</code> in <code>data/i18n.js</code>. No code changes needed.</p>',
+    "modal.help.lang.body":          '<p>The picker in the top bar switches the UI. Click it to choose from the available languages.</p>',
 
     "menu.select":   "Select this model",
     "menu.compare":  "Add to compare",

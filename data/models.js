@@ -1,31 +1,30 @@
 // data/models.js
 // ═══════════════════════════════════════════════════════════════
 //  TokenLens 内置模型费率配置
-//  ⭐ 此文件独立于主逻辑，方便频繁更新费率
+//  最后核对：2026-05-11
 //
 //  维护说明：
 //    - currency: "USD" | "CNY" | 其他（需在 BUILTIN_CURRENCIES 中定义）
-//    - pricing.type 枚举（仅三种，覆盖市面绝大多数模型计费方式）：
+//    - 所有价格单位：该币种 / 百万 tokens (per 1M tokens)
+//    - cacheHit 为 null 表示该模型未公开、暂不建模或该折扣不适合叠加
+//    - 推理 / thinking / reasoning tokens：按各厂商规则并入 output 计费
+//    - Anthropic cacheWrite：当前没有独立字段，未单独建模；如需精算，
+//      可在首次调用中手动上调 input 价或增加一次性成本。
+//    - Batch / Flex / 夜间等折扣：当前无专门字段，使用独立模型条目表达，
+//      id/name 后缀使用 "-batch"、"-night"。
 //
+//    - pricing.type 枚举：
 //        ┌───────────────────┬──────────────────────────────────────────────────┐
 //        │ type              │ 含义                                              │
 //        ├───────────────────┼──────────────────────────────────────────────────┤
-//        │ standard          │ 平价：固定 input / output / cacheHit              │
-//        │                   │ 适用：GPT-4o、Claude、DeepSeek V3/R1、Qwen、       │
-//        │                   │       ERNIE、GLM、Moonshot、Gemini 2.0 等         │
+//        │ standard          │ 固定 input / output / cacheHit                   │
 //        │ tiered_by_input   │ 由【单次输入 Token 总量】决定档位；               │
 //        │                   │ 每档同时给出 input / output / cacheHit            │
-//        │                   │ 适用：Gemini 2.5 系列、Doubao 1.5 Pro             │
-//        │ tiered_by_output  │ 由【单次输出 Token 总量】决定档位（同上结构）    │
-//        │                   │ 适用：备用对称类型，便于自定义模型扩展            │
+//        │ tiered_by_output  │ 由【单次输出 Token 总量】决定档位                 │
 //        └───────────────────┴──────────────────────────────────────────────────┘
 //
-//    - 所有价格单位：该币种 / 百万 tokens (per 1M tokens)
-//    - cacheHit 为 null 表示该模型不支持缓存
 //    - tiered_by_input  的 tiers 按 maxInputTokens  升序，最后一档设为 Infinity
 //    - tiered_by_output 的 tiers 按 maxOutputTokens 升序，最后一档设为 Infinity
-//    - 注意：maxInputTokens / maxOutputTokens 的单位是【个 Token】全额，不是 K 或 M！
-//            例如 200K 应写为 200000。
 // ═══════════════════════════════════════════════════════════════
 
 window.BUILTIN_CURRENCIES = [
@@ -39,99 +38,75 @@ window.BUILTIN_MODELS = [
   // ║         OpenAI               ║
   // ╚══════════════════════════════╝
   {
-    id: "gpt-4o",
-    name: "GPT-4o",
+    id: "gpt-5-5",
+    name: "GPT-5.5",
+    provider: "OpenAI",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 5.00,
+      output: 30.00,
+      cacheHit: 0.50,
+    }
+  },
+  {
+    id: "gpt-5-5-batch",
+    name: "GPT-5.5 Batch",
     provider: "OpenAI",
     currency: "USD",
     pricing: {
       type: "standard",
       input: 2.50,
-      output: 10.00,
-      cacheHit: 1.25,
+      output: 15.00,
+      cacheHit: 0.25,
     }
   },
   {
-    id: "gpt-4o-mini",
-    name: "GPT-4o mini",
+    id: "gpt-5-4",
+    name: "GPT-5.4",
     provider: "OpenAI",
     currency: "USD",
     pricing: {
       type: "standard",
-      input: 0.15,
-      output: 0.60,
+      input: 2.50,
+      output: 15.00,
+      cacheHit: 0.25,
+    }
+  },
+  {
+    id: "gpt-5-4-batch",
+    name: "GPT-5.4 Batch",
+    provider: "OpenAI",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 1.25,
+      output: 7.50,
+      cacheHit: 0.125,
+    }
+  },
+  {
+    id: "gpt-5-4-mini",
+    name: "GPT-5.4 mini",
+    provider: "OpenAI",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.75,
+      output: 4.50,
       cacheHit: 0.075,
     }
   },
   {
-    id: "gpt-4.1",
-    name: "GPT-4.1",
+    id: "gpt-5-4-mini-batch",
+    name: "GPT-5.4 mini Batch",
     provider: "OpenAI",
     currency: "USD",
     pricing: {
       type: "standard",
-      input: 2.00,
-      output: 8.00,
-      cacheHit: 0.50,
-    }
-  },
-  {
-    id: "gpt-4.1-mini",
-    name: "GPT-4.1 mini",
-    provider: "OpenAI",
-    currency: "USD",
-    pricing: {
-      type: "standard",
-      input: 0.40,
-      output: 1.60,
-      cacheHit: 0.10,
-    }
-  },
-  {
-    id: "gpt-4.1-nano",
-    name: "GPT-4.1 nano",
-    provider: "OpenAI",
-    currency: "USD",
-    pricing: {
-      type: "standard",
-      input: 0.10,
-      output: 0.40,
-      cacheHit: 0.025,
-    }
-  },
-  {
-    id: "o3",
-    name: "o3",
-    provider: "OpenAI",
-    currency: "USD",
-    pricing: {
-      type: "standard",
-      input: 10.00,
-      output: 40.00,
-      cacheHit: 2.50,
-    }
-  },
-  {
-    id: "o3-mini",
-    name: "o3 mini",
-    provider: "OpenAI",
-    currency: "USD",
-    pricing: {
-      type: "standard",
-      input: 1.10,
-      output: 4.40,
-      cacheHit: 0.55,
-    }
-  },
-  {
-    id: "o4-mini",
-    name: "o4-mini",
-    provider: "OpenAI",
-    currency: "USD",
-    pricing: {
-      type: "standard",
-      input: 1.10,
-      output: 4.40,
-      cacheHit: 0.275,
+      input: 0.375,
+      output: 2.25,
+      cacheHit: 0.0375,
     }
   },
 
@@ -139,8 +114,32 @@ window.BUILTIN_MODELS = [
   // ║        Anthropic             ║
   // ╚══════════════════════════════╝
   {
-    id: "claude-4-sonnet",
-    name: "Claude 4 Sonnet",
+    id: "claude-opus-4-7",
+    name: "Claude Opus 4.7",
+    provider: "Anthropic",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 5.00,
+      output: 25.00,
+      cacheHit: 0.50,
+    }
+  },
+  {
+    id: "claude-opus-4-7-batch",
+    name: "Claude Opus 4.7 Batch",
+    provider: "Anthropic",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 2.50,
+      output: 12.50,
+      cacheHit: 0.25,
+    }
+  },
+  {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6",
     provider: "Anthropic",
     currency: "USD",
     pricing: {
@@ -151,84 +150,117 @@ window.BUILTIN_MODELS = [
     }
   },
   {
-    id: "claude-3-7-sonnet",
-    name: "Claude 3.7 Sonnet",
+    id: "claude-sonnet-4-6-batch",
+    name: "Claude Sonnet 4.6 Batch",
     provider: "Anthropic",
     currency: "USD",
     pricing: {
       type: "standard",
-      input: 3.00,
-      output: 15.00,
-      cacheHit: 0.30,
+      input: 1.50,
+      output: 7.50,
+      cacheHit: 0.15,
     }
   },
   {
-    id: "claude-3-5-sonnet",
-    name: "Claude 3.5 Sonnet",
+    id: "claude-haiku-4-5",
+    name: "Claude Haiku 4.5",
     provider: "Anthropic",
     currency: "USD",
     pricing: {
       type: "standard",
-      input: 3.00,
-      output: 15.00,
-      cacheHit: 0.30,
+      input: 1.00,
+      output: 5.00,
+      cacheHit: 0.10,
     }
   },
   {
-    id: "claude-3-5-haiku",
-    name: "Claude 3.5 Haiku",
+    id: "claude-haiku-4-5-batch",
+    name: "Claude Haiku 4.5 Batch",
     provider: "Anthropic",
     currency: "USD",
     pricing: {
       type: "standard",
-      input: 0.80,
-      output: 4.00,
-      cacheHit: 0.08,
+      input: 0.50,
+      output: 2.50,
+      cacheHit: 0.05,
     }
   },
 
   // ╔══════════════════════════════╗
-  // ║          Google              ║
+  // ║          Google Gemini       ║
   // ╚══════════════════════════════╝
-  // Google Gemini 2.5 系列采用「Prompt Length」阶梯：
-  //   输入 Token 数量决定档位，且 input / output / cacheHit 三个单价
-  //   全部跟随档位变化（>200K 时三者一起上调）。
   {
-    id: "gemini-2-5-pro",
-    name: "Gemini 2.5 Pro",
+    id: "gemini-3-1-pro-preview",
+    name: "Gemini 3.1 Pro Preview",
     provider: "Google",
     currency: "USD",
     pricing: {
       type: "tiered_by_input",
       tiers: [
-        { maxInputTokens: 200000,   input: 1.25, output: 10.00, cacheHit: 0.31  },
-        { maxInputTokens: Infinity, input: 2.50, output: 15.00, cacheHit: 0.625 },
+        { maxInputTokens: 200000,   input: 2.00, output: 12.00, cacheHit: 0.20 },
+        { maxInputTokens: Infinity, input: 4.00, output: 18.00, cacheHit: 0.40 },
       ]
     }
   },
   {
-    id: "gemini-2-5-flash",
-    name: "Gemini 2.5 Flash",
+    id: "gemini-3-1-pro-preview-batch",
+    name: "Gemini 3.1 Pro Preview Batch",
     provider: "Google",
     currency: "USD",
     pricing: {
       type: "tiered_by_input",
       tiers: [
-        { maxInputTokens: 200000,   input: 0.15, output: 0.60, cacheHit: 0.0375 },
-        { maxInputTokens: Infinity, input: 0.30, output: 3.50, cacheHit: 0.075  },
+        { maxInputTokens: 200000,   input: 1.00, output: 6.00, cacheHit: 0.20 },
+        { maxInputTokens: Infinity, input: 2.00, output: 9.00, cacheHit: 0.40 },
       ]
     }
   },
   {
-    id: "gemini-2-0-flash",
-    name: "Gemini 2.0 Flash",
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash Preview",
     provider: "Google",
     currency: "USD",
     pricing: {
       type: "standard",
-      input: 0.10,
-      output: 0.40,
+      input: 0.50,
+      output: 3.00,
+      cacheHit: 0.05,
+    }
+  },
+  {
+    id: "gemini-3-flash-preview-batch",
+    name: "Gemini 3 Flash Preview Batch",
+    provider: "Google",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.25,
+      output: 1.50,
+      cacheHit: 0.05,
+    }
+  },
+  {
+    id: "gemini-3-1-flash-lite",
+    name: "Gemini 3.1 Flash-Lite",
+    provider: "Google",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.25,
+      output: 1.50,
       cacheHit: 0.025,
+    }
+  },
+  {
+    id: "gemini-3-1-flash-lite-batch",
+    name: "Gemini 3.1 Flash-Lite Batch",
+    provider: "Google",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.125,
+      output: 0.75,
+      cacheHit: 0.0125,
     }
   },
 
@@ -236,27 +268,51 @@ window.BUILTIN_MODELS = [
   // ║         DeepSeek             ║
   // ╚══════════════════════════════╝
   {
-    id: "deepseek-v3",
-    name: "DeepSeek V3",
+    id: "deepseek-v4-pro",
+    name: "DeepSeek V4 Pro",
     provider: "DeepSeek",
-    currency: "CNY",
+    currency: "USD",
     pricing: {
       type: "standard",
-      input: 2.00,
-      output: 8.00,
-      cacheHit: 0.50,
+      input: 0.435,
+      output: 0.87,
+      cacheHit: 0.003625,
     }
   },
   {
-    id: "deepseek-r1",
-    name: "DeepSeek R1",
+    id: "deepseek-v4-pro-night",
+    name: "DeepSeek V4 Pro Night",
     provider: "DeepSeek",
-    currency: "CNY",
+    currency: "USD",
     pricing: {
       type: "standard",
-      input: 4.00,
-      output: 16.00,
-      cacheHit: 1.00,
+      input: 0.2175,
+      output: 0.435,
+      cacheHit: 0.0018125,
+    }
+  },
+  {
+    id: "deepseek-v4-flash",
+    name: "DeepSeek V4 Flash",
+    provider: "DeepSeek",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.14,
+      output: 0.28,
+      cacheHit: 0.0028,
+    }
+  },
+  {
+    id: "deepseek-v4-flash-night",
+    name: "DeepSeek V4 Flash Night",
+    provider: "DeepSeek",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.07,
+      output: 0.14,
+      cacheHit: 0.0014,
     }
   },
 
@@ -264,39 +320,68 @@ window.BUILTIN_MODELS = [
   // ║        阿里云 Qwen            ║
   // ╚══════════════════════════════╝
   {
-    id: "qwen-max",
-    name: "Qwen Max",
+    id: "qwen3-6-max-preview",
+    name: "Qwen3.6 Max Preview",
     provider: "阿里云",
     currency: "CNY",
     pricing: {
-      type: "standard",
-      input: 2.40,
-      output: 9.60,
-      cacheHit: 0.60,
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 128000,   input: 9.742,  output: 58.455, cacheHit: null },
+        { maxInputTokens: Infinity, input: 14.988, output: 89.930, cacheHit: null },
+      ]
     }
   },
   {
-    id: "qwen-plus",
-    name: "Qwen Plus",
+    id: "qwen3-6-plus",
+    name: "Qwen3.6 Plus",
     provider: "阿里云",
     currency: "CNY",
     pricing: {
-      type: "standard",
-      input: 0.80,
-      output: 2.00,
-      cacheHit: 0.20,
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 256000,   input: 2.00, output: 12.00, cacheHit: null },
+        { maxInputTokens: Infinity, input: 8.00, output: 48.00, cacheHit: null },
+      ]
     }
   },
   {
-    id: "qwen-turbo",
-    name: "Qwen Turbo",
+    id: "qwen3-6-plus-batch",
+    name: "Qwen3.6 Plus Batch",
     provider: "阿里云",
     currency: "CNY",
     pricing: {
-      type: "standard",
-      input: 0.30,
-      output: 0.60,
-      cacheHit: 0.036,
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 256000,   input: 1.00, output: 6.00,  cacheHit: null },
+        { maxInputTokens: Infinity, input: 4.00, output: 24.00, cacheHit: null },
+      ]
+    }
+  },
+  {
+    id: "qwen3-6-flash",
+    name: "Qwen3.6 Flash",
+    provider: "阿里云",
+    currency: "CNY",
+    pricing: {
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 256000,   input: 1.20, output: 7.20,  cacheHit: null },
+        { maxInputTokens: Infinity, input: 4.80, output: 28.80, cacheHit: null },
+      ]
+    }
+  },
+  {
+    id: "qwen3-6-flash-batch",
+    name: "Qwen3.6 Flash Batch",
+    provider: "阿里云",
+    currency: "CNY",
+    pricing: {
+      type: "tiered_by_input",
+      tiers: [
+        { maxInputTokens: 256000,   input: 0.60, output: 3.60,  cacheHit: null },
+        { maxInputTokens: Infinity, input: 2.40, output: 14.40, cacheHit: null },
+      ]
     }
   },
 
@@ -304,85 +389,67 @@ window.BUILTIN_MODELS = [
   // ║        字节跳动 豆包          ║
   // ╚══════════════════════════════╝
   {
-    id: "doubao-pro-32k",
-    name: "豆包 Pro 32K",
+    id: "doubao-seed-2-0-pro",
+    name: "Doubao-Seed-2.0 Pro",
     provider: "字节跳动",
     currency: "CNY",
     pricing: {
       type: "standard",
-      input: 0.80,
-      output: 2.00,
-      cacheHit: null,
-    }
-  },
-  {
-    id: "doubao-pro-128k",
-    name: "豆包 Pro 128K",
-    provider: "字节跳动",
-    currency: "CNY",
-    pricing: {
-      type: "standard",
-      input: 5.00,
-      output: 9.00,
-      cacheHit: null,
-    }
-  },
-  // 豆包 1.5 Pro 按上下文（即 input）长度分档，输入与输出单价随档位同时变化。
-  {
-    id: "doubao-1-5-pro",
-    name: "豆包 1.5 Pro",
-    provider: "字节跳动",
-    currency: "CNY",
-    pricing: {
-      type: "tiered_by_input",
-      tiers: [
-        { maxInputTokens: 32000,    input: 0.80, output: 2.00, cacheHit: null },
-        { maxInputTokens: Infinity, input: 5.00, output: 9.00, cacheHit: null },
-      ]
-    }
-  },
-
-  // ╔══════════════════════════════╗
-  // ║          百度文心             ║
-  // ╚══════════════════════════════╝
-  {
-    id: "ernie-4-5",
-    name: "ERNIE 4.5",
-    provider: "百度",
-    currency: "CNY",
-    pricing: {
-      type: "standard",
-      input: 4.00,
+      input: 3.20,
       output: 16.00,
       cacheHit: null,
     }
   },
   {
-    id: "ernie-4-0",
-    name: "ERNIE 4.0",
-    provider: "百度",
+    id: "doubao-seed-2-0-lite",
+    name: "Doubao-Seed-2.0 Lite",
+    provider: "字节跳动",
     currency: "CNY",
     pricing: {
       type: "standard",
-      input: 30.00,
-      output: 60.00,
+      input: 0.60,
+      output: 3.60,
+      cacheHit: 0.12,
+    }
+  },
+  {
+    id: "doubao-seed-2-0-mini",
+    name: "Doubao-Seed-2.0 Mini",
+    provider: "字节跳动",
+    currency: "CNY",
+    pricing: {
+      type: "standard",
+      input: 0.20,
+      output: 2.00,
       cacheHit: null,
     }
   },
 
   // ╔══════════════════════════════╗
-  // ║       月之暗面 Moonshot       ║
+  // ║       月之暗面 Kimi           ║
   // ╚══════════════════════════════╝
   {
-    id: "moonshot-v1-32k",
-    name: "Moonshot v1 32K",
+    id: "kimi-k2-6",
+    name: "Kimi K2.6",
     provider: "月之暗面",
-    currency: "CNY",
+    currency: "USD",
     pricing: {
       type: "standard",
-      input: 24.00,
-      output: 24.00,
-      cacheHit: null,
+      input: 0.95,
+      output: 4.00,
+      cacheHit: 0.16,
+    }
+  },
+  {
+    id: "kimi-k2-6-batch",
+    name: "Kimi K2.6 Batch",
+    provider: "月之暗面",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.57,
+      output: 2.40,
+      cacheHit: 0.10,
     }
   },
 
@@ -390,27 +457,55 @@ window.BUILTIN_MODELS = [
   // ║         智谱 GLM             ║
   // ╚══════════════════════════════╝
   {
-    id: "glm-4-plus",
-    name: "GLM-4-Plus",
+    id: "glm-5-1",
+    name: "GLM-5.1",
     provider: "智谱AI",
-    currency: "CNY",
+    currency: "USD",
     pricing: {
       type: "standard",
-      input: 50.00,
-      output: 50.00,
-      cacheHit: null,
+      input: 1.05,
+      output: 3.50,
+      cacheHit: 0.208,
+    }
+  },
+
+  // ╔══════════════════════════════╗
+  // ║         小米 MiMo            ║
+  // ╚══════════════════════════════╝
+  {
+    id: "mimo-v2-5-pro",
+    name: "MiMo V2.5 Pro",
+    provider: "小米",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 1.00,
+      output: 3.00,
+      cacheHit: 0.20,
     }
   },
   {
-    id: "glm-4-flash",
-    name: "GLM-4-Flash",
-    provider: "智谱AI",
-    currency: "CNY",
+    id: "mimo-v2-5",
+    name: "MiMo V2.5",
+    provider: "小米",
+    currency: "USD",
     pricing: {
       type: "standard",
-      input: 0.00,
-      output: 0.00,
-      cacheHit: null,
+      input: 0.40,
+      output: 2.00,
+      cacheHit: 0.08,
+    }
+  },
+  {
+    id: "mimo-v2-flash",
+    name: "MiMo V2 Flash",
+    provider: "小米",
+    currency: "USD",
+    pricing: {
+      type: "standard",
+      input: 0.10,
+      output: 0.30,
+      cacheHit: 0.01,
     }
   },
 ];
