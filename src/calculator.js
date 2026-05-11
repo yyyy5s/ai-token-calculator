@@ -5,7 +5,7 @@ const Calculator = (() => {
 
   /**
    * Find the first tier whose threshold is >= tokens.
-   * Falls back to the last tier (highest threshold, usually Infinity).
+   * Falls back to the last tier (usually Infinity).
    */
   function findTier(tiers, tokens, thresholdKey) {
     if (!Array.isArray(tiers) || tiers.length === 0) return null;
@@ -20,25 +20,13 @@ const Calculator = (() => {
    *  • "standard"
    *      Flat: { input, output, cacheHit }
    *
-   *  • "tiered_by_input"   ← Gemini 2.5 / Doubao 1.5 Pro 等
-   *      输入 Token 数量决定整个档位（input / output / cacheHit 全部按档位走）。
+   *  • "tiered_by_input"      ← Gemini 2.5 / Doubao 1.5 Pro 等
+   *      由【单次输入 Token 总量】决定档位；每档同时给出 input / output / cacheHit。
    *      tiers: [{ maxInputTokens, input, output, cacheHit }]
    *
    *  • "tiered_by_output"
-   *      输出 Token 数量决定整个档位（少见，但保留以备其他厂商使用）。
+   *      由【单次输出 Token 总量】决定档位；每档同时给出 input / output / cacheHit。
    *      tiers: [{ maxOutputTokens, input, output, cacheHit }]
-   *
-   *  • "tiered_input"       (legacy)
-   *      仅 input 价随输入 Token 阶梯变化，output 固定。
-   *      inputTiers: [{ maxInputTokens, price, cacheHit }], output, (cacheHit)
-   *
-   *  • "tiered_output"      (legacy)
-   *      仅 output 价随输出 Token 阶梯变化，input 固定。
-   *      outputTiers: [{ maxOutputTokens, price }], input, (cacheHit)
-   *
-   *  • "tiered_both"        (legacy)
-   *      input 和 output 各自独立阶梯。
-   *      inputTiers + outputTiers
    *
    * 返回 { inputPrice, outputPrice, cacheHitPrice, activeInputTier?, activeOutputTier? }
    */
@@ -62,38 +50,6 @@ const Calculator = (() => {
           outputPrice:   tier.output   ?? 0,
           cacheHitPrice: tier.cacheHit ?? tier.input ?? 0,
           activeOutputTier: tier,
-        };
-      }
-
-      case "tiered_input": {
-        const tier = findTier(pricing.inputTiers, inputTokens, "maxInputTokens") || {};
-        return {
-          inputPrice:    tier.price ?? 0,
-          outputPrice:   pricing.output ?? 0,
-          cacheHitPrice: tier.cacheHit ?? tier.price ?? 0,
-          activeInputTier: tier,
-        };
-      }
-
-      case "tiered_output": {
-        const tier = findTier(pricing.outputTiers, outputTokens, "maxOutputTokens") || {};
-        return {
-          inputPrice:    pricing.input ?? 0,
-          outputPrice:   tier.price ?? 0,
-          cacheHitPrice: pricing.cacheHit ?? pricing.input ?? 0,
-          activeOutputTier: tier,
-        };
-      }
-
-      case "tiered_both": {
-        const inTier  = findTier(pricing.inputTiers,  inputTokens,  "maxInputTokens")  || {};
-        const outTier = findTier(pricing.outputTiers, outputTokens, "maxOutputTokens") || {};
-        return {
-          inputPrice:    inTier.price ?? 0,
-          outputPrice:   outTier.price ?? 0,
-          cacheHitPrice: inTier.cacheHit ?? inTier.price ?? 0,
-          activeInputTier:  inTier,
-          activeOutputTier: outTier,
         };
       }
 

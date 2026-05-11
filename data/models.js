@@ -5,29 +5,27 @@
 //
 //  维护说明：
 //    - currency: "USD" | "CNY" | 其他（需在 BUILTIN_CURRENCIES 中定义）
-//    - pricing.type 枚举（每款模型的计费方式可能不同）：
+//    - pricing.type 枚举（仅三种，覆盖市面绝大多数模型计费方式）：
 //
 //        ┌───────────────────┬──────────────────────────────────────────────────┐
 //        │ type              │ 含义                                              │
 //        ├───────────────────┼──────────────────────────────────────────────────┤
 //        │ standard          │ 平价：固定 input / output / cacheHit              │
-//        │ tiered_by_input   │ 由【输入 Token 总量】决定档位，                   │
+//        │                   │ 适用：GPT-4o、Claude、DeepSeek V3/R1、Qwen、       │
+//        │                   │       ERNIE、GLM、Moonshot、Gemini 2.0 等         │
+//        │ tiered_by_input   │ 由【单次输入 Token 总量】决定档位；               │
 //        │                   │ 每档同时给出 input / output / cacheHit            │
-//        │                   │ ← Gemini 2.5 系列、Doubao 1.5 Pro 都属于这种      │
-//        │ tiered_by_output  │ 由【输出 Token 总量】决定档位（含完整三价）      │
-//        │ tiered_input      │ (legacy) 仅 input 价按输入阶梯；output 固定       │
-//        │ tiered_output     │ (legacy) 仅 output 价按输出阶梯；input 固定       │
-//        │ tiered_both       │ (legacy) input 与 output 各自独立阶梯             │
+//        │                   │ 适用：Gemini 2.5 系列、Doubao 1.5 Pro             │
+//        │ tiered_by_output  │ 由【单次输出 Token 总量】决定档位（同上结构）    │
+//        │                   │ 适用：备用对称类型，便于自定义模型扩展            │
 //        └───────────────────┴──────────────────────────────────────────────────┘
 //
 //    - 所有价格单位：该币种 / 百万 tokens (per 1M tokens)
 //    - cacheHit 为 null 表示该模型不支持缓存
-//    - tiered_by_input  的 tiers       按 maxInputTokens  升序，最后一档设为 Infinity
-//    - tiered_by_output 的 tiers       按 maxOutputTokens 升序，最后一档设为 Infinity
-//    - tiered_input     的 inputTiers  按 maxInputTokens  升序，每档可含独立 cacheHit
-//    - tiered_output    的 outputTiers 按 maxOutputTokens 升序
-//    - tiered_both      同时含 inputTiers 和 outputTiers
-//    - 注意：maxInputTokens / maxOutputTokens 等阈值的单位是【个 Token】全额，不是 K 或 M！例如 200K 应写为 200000。
+//    - tiered_by_input  的 tiers 按 maxInputTokens  升序，最后一档设为 Infinity
+//    - tiered_by_output 的 tiers 按 maxOutputTokens 升序，最后一档设为 Infinity
+//    - 注意：maxInputTokens / maxOutputTokens 的单位是【个 Token】全额，不是 K 或 M！
+//            例如 200K 应写为 200000。
 // ═══════════════════════════════════════════════════════════════
 
 window.BUILTIN_CURRENCIES = [
@@ -150,7 +148,6 @@ window.BUILTIN_MODELS = [
       input: 3.00,
       output: 15.00,
       cacheHit: 0.30,
-      cacheWrite: 3.75,
     }
   },
   {
@@ -163,7 +160,6 @@ window.BUILTIN_MODELS = [
       input: 3.00,
       output: 15.00,
       cacheHit: 0.30,
-      cacheWrite: 3.75,
     }
   },
   {
@@ -176,7 +172,6 @@ window.BUILTIN_MODELS = [
       input: 3.00,
       output: 15.00,
       cacheHit: 0.30,
-      cacheWrite: 3.75,
     }
   },
   {
@@ -189,7 +184,6 @@ window.BUILTIN_MODELS = [
       input: 0.80,
       output: 4.00,
       cacheHit: 0.08,
-      cacheWrite: 1.00,
     }
   },
 
